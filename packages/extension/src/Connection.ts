@@ -121,6 +121,8 @@ const getTicket = async (options: ConnectionOptions): Promise<string> => {
     response = await fetch(endpoint, {
       headers: { authorization: `Bearer ${options.sessionToken}` },
       method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
     })
   } catch (error) {
     const detail = getErrorDetail(error)
@@ -171,6 +173,11 @@ const createRpc = async (
   let nextId = 1
   let closed = false
   const { promise: ready, reject, resolve } = Promise.withResolvers<void>()
+  void ready.catch(() => {})
+  const handshakeTimer = setTimeout(() => {
+    close(new Error('Codespaces WebSocket connection timed out'))
+    webSocket.close()
+  }, 20_000)
 
   const close = (
     error = new Error('Remote server connection closed'),
@@ -179,6 +186,7 @@ const createRpc = async (
       return
     }
     closed = true
+    clearTimeout(handshakeTimer)
     reject(error)
     for (const request of pending.values()) {
       clearTimeout(request.timeout)
@@ -190,7 +198,10 @@ const createRpc = async (
     }
   }
 
-  webSocket.onopen = (): void => resolve()
+  webSocket.onopen = (): void => {
+    clearTimeout(handshakeTimer)
+    resolve()
+  }
   webSocket.onerror = (event): void => {
     const detail = getWebSocketErrorDetail(event)
     const suffix = detail ? `: ${detail}` : ''
@@ -303,4 +314,15 @@ export const getWebSocketUrl = async (type: string): Promise<string> => {
     throw new Error('Remote server is not paired')
   }
   return createWebSocketUrl(state.options, type)
+}
+
+export const assertAuthority = (authority: string): void => {
+  if (
+    !state.options ||
+    new URL(state.options.websocketUrl).host !== authority
+  ) {
+    throw new Error(
+      'This file belongs to a different or disconnected Codespace.',
+    )
+  }
 }

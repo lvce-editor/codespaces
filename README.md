@@ -7,7 +7,7 @@ A browser extension and GitHub Pages export of LVCE Editor. The extension owns C
 ## Try it
 
 1. Open the web editor and sign in using the existing LVCE account button.
-2. Open the command palette (F1), run **Codespaces: Set Up a Codespace**, and copy the generated command.
+2. Open the command palette (F1), run **Codespaces: Set Up a Codespace**, and copy the generated command from the Codespaces Output panel.
 3. Open or create a codespace at https://github.com/codespaces. Run the command in its workspace terminal (Linux x64, Node.js 24+).
 4. Forward port **3774** using the Codespaces Ports tab and change its visibility to **Public**. The gateway requires your LVCE account. Do not publish the internal backend port.
 5. Back in LVCE, run **Codespaces: Connect to Codespace** and enter the codespace name or forwarded HTTPS URL. Keep the setup terminal running.

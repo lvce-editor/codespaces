@@ -43,5 +43,11 @@
     {
       "id": "codespaces"
     }
+  ],
+  "outputChannels": [
+    {
+      "id": "codespaces",
+      "label": "Codespaces"
+    }
   ]
 }

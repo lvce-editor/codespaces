@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
@@ -20,7 +20,8 @@ test.beforeAll(async () => {
   backend = spawn(
     process.execPath,
     [
-      'node_modules/@lvce-editor/server/src/server.js',
+      process.env.LVCE_CODESPACES_TEST_BACKEND ||
+        'node_modules/@lvce-editor/server/src/server.js',
       '--as-remote-ssh-server',
       '--port=0',
       '--connection-token=test-backend-secret',
@@ -95,6 +96,19 @@ test('connects the Pages editor to real remote files', async ({
       }
     })
   })
+  await context.route('https://lvce-editor.dev/oidc/me', (route) =>
+    route.fulfill({ json: { sub: 'test-owner' } }),
+  )
+  await page.keyboard.press('F1')
+  await page
+    .getByRole('option', {
+      name: 'Codespaces: Set Up a Codespace',
+      exact: true,
+    })
+    .click()
+  await expect(
+    page.getByText(/curl --fail --silent --show-error/),
+  ).toBeVisible()
   await page.keyboard.press('F1')
   await page
     .getByRole('option', {
@@ -102,7 +116,7 @@ test('connects the Pages editor to real remote files', async ({
       exact: true,
     })
     .click()
-  const input = page.getByRole('combobox')
+  const input = page.getByRole('combobox', { name: /^Codespace name/ })
   await expect(input).toHaveAttribute('placeholder', /Codespace name/)
   await input.fill(`http://127.0.0.1:${gateway.port}`)
   await input.press('Enter')
@@ -113,4 +127,10 @@ test('connects the Pages editor to real remote files', async ({
   await expect(
     page.getByText('Hello from the real remote LVCE backend!', { exact: true }),
   ).toBeVisible()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.insertText('Saved from the Pages editor!')
+  await page.keyboard.press('Control+s')
+  await expect
+    .poll(() => readFile(path.join(workspace, 'codespaces-proof.txt'), 'utf8'))
+    .toContain('Saved from the Pages editor!')
 })

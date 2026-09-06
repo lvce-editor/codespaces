@@ -59,6 +59,7 @@ const invokeFileSystem = (
   ...params: readonly unknown[]
 ): Promise<unknown> => {
   const location = getLocation(uri)
+  RemoteServerConnection.assertAuthority(location.authority)
   return invoke(method, toFileUri(location.path), ...params)
 }
 
@@ -113,6 +114,7 @@ export const createRemoteServerFileSystem = (
       if (oldLocation.authority !== newLocation.authority) {
         throw new Error('Cannot rename across remote servers')
       }
+      RemoteServerConnection.assertAuthority(oldLocation.authority)
       requireMutable(oldUri)
       requireMutable(newUri)
       try {
