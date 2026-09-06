@@ -19,7 +19,11 @@
     "onCommand:codespaces.connect",
     "onCommand:codespaces.getWebSocketUrl",
     "onCommand:codespaces.disconnect",
-    "onFileSystem:codespaces"
+    "onFileSystem:codespaces",
+    "onCommand:codespaces.start",
+    "onCommand:codespaces.stop",
+    "onCommand:codespaces.authorize",
+    "onCommand:codespaces.connectGateway"
   ],
   "commands": [
     {
@@ -37,6 +41,22 @@
     {
       "id": "codespaces.getWebSocketUrl",
       "internal": true
+    },
+    {
+      "id": "codespaces.start",
+      "label": "Codespaces: Start Codespace"
+    },
+    {
+      "id": "codespaces.stop",
+      "label": "Codespaces: Stop Codespace"
+    },
+    {
+      "id": "codespaces.authorize",
+      "label": "Codespaces: Authorize GitHub Access"
+    },
+    {
+      "id": "codespaces.connectGateway",
+      "label": "Codespaces: Connect to Manual Gateway"
     }
   ],
   "fileSystemProviders": [

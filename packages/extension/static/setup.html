@@ -1,77 +1,77 @@
 <!doctype html>
 <html lang="en">
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Set up Codespaces · LVCE Editor</title>
-  <style>
-    body {
-      font: 16px/1.6 system-ui;
-      max-width: 760px;
-      margin: 60px auto;
-      padding: 0 24px;
-      background: #17191e;
-      color: #eceef5;
-    }
-    a {
-      color: #9bbcff;
-    }
-    code {
-      background: #292d36;
-      padding: 3px 7px;
-      border-radius: 4px;
-    }
-    li {
-      margin: 16px 0;
-    }
-  </style>
-  <h1>Use your Codespace in LVCE Editor</h1>
-  <p>
-    Your files and tools run in GitHub Codespaces. LVCE runs in your browser.
-  </p>
-  <ol>
-    <li>
-      <a href="./">Open LVCE Editor</a> and sign in using its account button.
-    </li>
-    <li>
-      Open the command palette (F1) and run
-      <strong>Codespaces: Set Up a Codespace</strong>. Copy the generated
-      command.
-    </li>
-    <li>
-      <a
-        href="https://github.com/codespaces"
-        target="_blank"
-        rel="noopener noreferrer"
-        >Open or create a Codespace on GitHub</a
-      >. In its terminal, run the command from your workspace directory. Setup
-      requires Linux x64 and Node.js 24 or newer, and downloads a verified LVCE
-      runtime.
-    </li>
-    <li>
-      In the Codespaces <strong>Ports</strong> tab, forward port
-      <code>3774</code> and set its visibility to <strong>Public</strong>. The
-      gateway still requires your LVCE account. Only publish this gateway port;
-      keep the internal backend private.
-    </li>
-    <li>
-      Return to LVCE, run <strong>Codespaces: Connect to Codespace</strong>, and
-      enter the codespace name or its forwarded HTTPS URL.
-    </li>
-  </ol>
-  <p>
-    Keep the setup terminal running. Sessions last one hour. To reconnect after
-    a reload, run Connect again. Organizations that prohibit public forwarded
-    ports cannot use this connection method.
-  </p>
-  <p>
-    This first version uses the existing LVCE login without changing its
-    backend. Codespace creation and startup happen on GitHub because the current
-    LVCE OAuth integration does not grant Codespaces API access. Private-port
-    transport and automatic remote setup are not implemented.
-  </p>
-  <p>
-    <a href="https://github.com/lvce-editor/codespaces"
-      >Source and current test results</a
-    >
-  </p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up Codespaces · LVCE Editor</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        max-width: 760px;
+        margin: 64px auto;
+        padding: 0 24px;
+        line-height: 1.7;
+      }
+      a {
+        color: #6baaff;
+      }
+      li {
+        margin-bottom: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Use your Codespace in LVCE Editor</h1>
+    <p>
+      Create, start, stop, and connect from this GitHub Pages site. Setup runs
+      automatically through a private SSH connection.
+    </p>
+    <ol>
+      <li>
+        <a href="./">Open LVCE Editor</a> and sign in with GitHub using the
+        account button.
+      </li>
+      <li>
+        Press F1 and run <strong>Codespaces: Authorize GitHub Access</strong> if
+        you previously signed in without the Codespaces permission. Approve
+        GitHub’s additional permission and return to the editor.
+      </li>
+      <li>
+        Run <strong>Codespaces: Connect to Codespace</strong> and select a
+        Codespace. It will start if needed. To create one, run
+        <strong>Codespaces: Set Up a Codespace</strong>, enter a repository as
+        <code>owner/name</code>, and confirm creation.
+      </li>
+      <li>
+        Wait for setup and connection. Progress appears in the Codespaces Output
+        panel. No terminal command or public port is required.
+      </li>
+      <li>
+        Run <strong>Codespaces: Stop Codespace</strong> when finished.
+        <strong>Disconnect</strong> cancels setup or closes the connection but
+        leaves GitHub compute running.
+      </li>
+    </ol>
+    <p>
+      GitHub compute and storage charges can apply. Creation uses GitHub’s
+      default machine and devcontainer settings. The runtime currently needs a
+      Linux x64 Codespace with an SSH server, Bash, curl, tar, and sha256sum;
+      GitHub’s default image supports this.
+    </p>
+    <p>
+      If authorization fails, run Authorize GitHub Access again. GitHub billing
+      limits and organization policies can also prevent creation or startup.
+      Custom devcontainers without SSH need the
+      <a href="https://cli.github.com/manual/gh_codespace_ssh">sshd feature</a>.
+    </p>
+    <p>
+      The LVCE backend must be running the Codespaces-enabled version.
+      <a href="https://github.com/lvce-editor/codespaces"
+        >Implementation and current limits</a
+      >.
+    </p>
+  </body>
 </html>

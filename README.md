@@ -2,33 +2,32 @@
 
 [Open the web editor](https://lvce-editor.github.io/codespaces/) · [Setup guide](https://lvce-editor.github.io/codespaces/setup.html)
 
-A browser extension and GitHub Pages export of LVCE Editor. The extension owns Codespaces setup and connection logic. Files, terminals, and workspace processes run inside the codespace; the UI runs on Pages.
+Create, start, stop, and connect to GitHub Codespaces from a static GitHub Pages export of LVCE Editor. The extension handles the workflow and installs the remote LVCE runtime automatically. No local CLI, Codespace terminal command, or public forwarded port is needed.
 
 ## Try it
 
-1. Open the web editor and sign in using the existing LVCE account button.
-2. Open the command palette (F1), run **Codespaces: Set Up a Codespace**, and copy the generated command from the Codespaces Output panel.
-3. Open or create a codespace at https://github.com/codespaces. Run the command in its workspace terminal (Linux x64, Node.js 24+).
-4. Forward port **3774** using the Codespaces Ports tab and change its visibility to **Public**. The gateway requires your LVCE account. Do not publish the internal backend port.
-5. Back in LVCE, run **Codespaces: Connect to Codespace** and enter the codespace name or forwarded HTTPS URL. Keep the setup terminal running.
+1. Sign in with GitHub through the LVCE account button. If you signed in before Codespaces support was added, run **Codespaces: Authorize GitHub Access** and approve the additional GitHub permission.
+2. Run **Codespaces: Connect to Codespace** (F1) and select a Codespace. A stopped Codespace starts automatically. Alternatively, **Codespaces: Set Up a Codespace** asks for `owner/repository` and creates one using GitHub defaults after confirmation.
+3. Wait while the extension installs its runtime and connects. Progress appears in the Codespaces Output panel.
+4. Use **Codespaces: Stop Codespace** when finished to stop GitHub compute. **Disconnect** closes the editor connection or cancels setup; it does not stop the Codespace or remove its storage.
 
-The public port is an authenticated application endpoint, not an anonymous editor or shell. A session grants workspace access as the codespace user, including terminals. The workspace path is the initial folder, not a filesystem sandbox.
+GitHub's billing, quota, repository permissions, and organization policies apply. Creating a Codespace starts compute and can incur charges. Stopped Codespaces can still incur storage charges.
 
 ## How it works
 
-The static export uses the same `@lvce-editor/shared-process` exporter as Explorer View. `builtin.codespaces` uses LVCE's existing `getAccessToken` API. Setup reads the account's OIDC subject and generates a command containing that identifier, never a token.
+The static export uses the same `@lvce-editor/shared-process` exporter as Explorer View. The extension calls authenticated `/codespaces` endpoints on `lvce-editor.dev` with the existing LVCE OIDC access token. Backend-2 requests GitHub's `codespace` OAuth scope and keeps the GitHub token server-side.
 
-The setup script downloads remote-ssh v0.10.7 and Node.js v24.15.0, verifies pinned SHA-256 digests, starts the LVCE backend, and exposes a loopback HTTP/WebSocket gateway. Codespaces supplies public HTTPS forwarding. `/auth/connect` validates the LVCE access token against the existing `https://lvce-editor.dev/oidc/me` endpoint and compares the account to the owner chosen at setup. It exchanges the login for a random in-memory one-hour gateway session. Each WebSocket uses a short-lived, single-use ticket. The gateway checks the exact Pages origin, permits only LVCE workspace process types, and keeps its internal backend credential server-side.
+Lifecycle operations use GitHub's public REST API. Connection sessions use GitHub CLI's authenticated SSH transport on backend-2. The backend downloads this extension's setup artifact inside the Codespace, runs it with a checksum-verified Node runtime, and privately forwards the LVCE backend port over SSH. Setup installs checksum-verified remote-ssh v0.10.7 and Node v24.15.0. The extension then opens files, terminals, and workspace processes through the relay.
 
-No changes to the LVCE authentication backend are required. The existing backend token is not a GitHub API token and is never sent to api.github.com. Use only the forwarded URL belonging to the codespace where you ran setup.
+Each connection has an isolated SSH key and configuration directory. HTTP operations require a valid LVCE token, the exact Pages origin, and session ownership. Browser WebSockets use single-use, short-lived tickets. GitHub tokens and the remote LVCE backend token never reach the browser. Connection sessions expire after one hour and close their SSH processes and sockets when disconnected. Files and processes run with the Codespace user's permissions; the workspace path is not a filesystem sandbox.
 
-## Current limits
+## Current requirements and limits
 
-- Initial codespace creation/start and running setup happen through GitHub. The current auth backend does not expose a GitHub token or request the `codespace` scope, so automatic API discovery, creation, and startup are not implemented.
-- Private forwarded ports require GitHub browser authentication and are not supported by this cross-origin transport. Organizations that disallow public ports cannot use this version.
-- Sessions expire after one hour, close when the gateway stops, and are not stored in the browser. After reload, restart, expiry, or codespace suspension, run Connect again. **Codespaces: Disconnect** closes local workspace connections.
-- Setup currently supports Linux x64 Codespaces and requires Node.js 24+ to launch. Downloads are cached under `~/.lvce-codespaces`.
-- The gateway is a single-user prototype. It limits pending authentication, sessions, tickets, and buffered data; it does not provide a production rate-limit service or persistent enrollment.
+- Backend-2 must be deployed with the Codespaces endpoints and its updated Docker image, which includes GitHub CLI and OpenSSH. Existing users must authorize the additional GitHub scope.
+- The remote devcontainer must be Linux x64, with Bash, curl, tar, sha256sum, and an SSH server. GitHub's default Codespaces image supplies these; custom images may need the [sshd devcontainer feature](https://cli.github.com/manual/gh_codespace_ssh).
+- Sessions live in one backend process. Multiple replicas require session affinity. Reloading the browser requires connecting again; abandoned sessions expire after one hour. Disconnecting never stops GitHub compute automatically.
+- GitHub default machine, region, branch, and devcontainer settings are used for creation. Custom selection is not yet exposed.
+- The older manually configured gateway remains available as **Codespaces: Connect to Manual Gateway**. The primary flow uses private SSH forwarding.
 
 ## Development
 
@@ -42,6 +41,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`node packages/build/src/serve-static.ts` serves the export at `http://127.0.0.1:4173/codespaces/`. For local gateway testing, use `LVCE_CODESPACES_ROOT=<temporary-directory> node .tmp/setup/setup.mjs --owner=<LVCE-account-subject> --local-test`. This uses the real LVCE authentication endpoint; it does not bypass login.
-
-CI checks the extension and gateway, builds the static export, runs Chromium tests, and deploys `main` to GitHub Pages. Browser tests use a fixture identity with a real LVCE backend; that does not establish that GitHub's hosted forwarding has been tested.
+`node packages/build/src/serve-static.ts` serves the export at `http://127.0.0.1:4173/codespaces/`. CI runs unit and Chromium tests and deploys `main` to Pages. Browser tests cover creation, connection, file saving, and stopping using a fixture management API and a real LVCE file backend. Backend-2 separately tests ownership, private relay traffic, ticket replay rejection, and cancellation. These fixtures do not establish that a real GitHub-hosted Codespace has been tested.

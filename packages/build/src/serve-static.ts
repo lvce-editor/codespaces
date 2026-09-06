@@ -36,4 +36,4 @@ createServer(async (req, res) => {
     res.writeHead(404)
     res.end('Not found')
   }
-}).listen(4173, '127.0.0.1')
+}).listen(Number(process.env.LVCE_CODESPACES_TEST_PORT || 4173), '127.0.0.1')

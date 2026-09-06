@@ -64,14 +64,19 @@ const installArchive = async (
 const main = async (): Promise<void> => {
   const owner = process.argv.find((arg) => arg.startsWith('--owner='))?.slice(8)
   const local = process.argv.includes('--local-test')
-  if (!owner)
+  const relay = process.argv.includes('--relay')
+  if (!owner && !relay)
     throw new Error(
       'Run Codespaces: Set Up a Codespace in LVCE to get a command for your account.',
     )
   if (process.platform !== 'linux' || process.arch !== 'x64')
     throw new Error('This first version supports Linux x64 Codespaces.')
   const codespace = process.env.CODESPACE_NAME
-  if (!local && (!codespace || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(codespace)))
+  if (
+    !local &&
+    !relay &&
+    (!codespace || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(codespace))
+  )
     throw new Error('Run this command inside a GitHub Codespace.')
   const root =
     process.env.LVCE_CODESPACES_ROOT || path.join(homedir(), '.lvce-codespaces')
@@ -128,13 +133,30 @@ const main = async (): Promise<void> => {
       })
     },
   )
+  if (relay) {
+    console.log(
+      JSON.stringify({
+        type: 'lvce-relay-ready',
+        backend: ready.backend,
+        workspacePath: process.cwd(),
+      }),
+    )
+    const stop = (): void => {
+      child.kill()
+    }
+    process.stdin.resume()
+    process.stdin.once('end', stop)
+    process.once('SIGTERM', stop)
+    process.once('SIGINT', stop)
+    return
+  }
   const publicUrl = local
     ? 'http://127.0.0.1:3774'
     : `https://${codespace}-3774.app.github.dev`
   let gateway
   try {
     gateway = await createGateway({
-      owner,
+      owner: owner!,
       backendPort: ready.backend.port,
       backendToken: ready.backend.token,
       port: 3774,

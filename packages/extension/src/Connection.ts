@@ -1,4 +1,8 @@
+import { getToken } from './Auth.ts'
+
 interface ConnectionOptions {
+  readonly authority?: string
+  readonly refreshLvceToken?: boolean
   readonly sessionToken: string
   readonly websocketUrl: string
 }
@@ -114,12 +118,14 @@ const toError = (value: RpcError | undefined): Error => {
 }
 
 const getTicket = async (options: ConnectionOptions): Promise<string> => {
-  const endpoint = new URL('/auth/websocket-ticket', options.websocketUrl)
+  const endpoint = new URL('auth/websocket-ticket', options.websocketUrl)
   endpoint.protocol = endpoint.protocol === 'wss:' ? 'https:' : 'http:'
   let response: Response
   try {
     response = await fetch(endpoint, {
-      headers: { authorization: `Bearer ${options.sessionToken}` },
+      headers: {
+        authorization: `Bearer ${options.refreshLvceToken ? await getToken() : options.sessionToken}`,
+      },
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(20_000),
@@ -155,7 +161,7 @@ const createWebSocketUrl = async (
   type: string,
 ): Promise<string> => {
   const url = new URL(
-    `/websocket/${encodeURIComponent(type)}`,
+    `websocket/${encodeURIComponent(type)}`,
     options.websocketUrl,
   )
   url.searchParams.set('ticket', await getTicket(options))
@@ -319,7 +325,8 @@ export const getWebSocketUrl = async (type: string): Promise<string> => {
 export const assertAuthority = (authority: string): void => {
   if (
     !state.options ||
-    new URL(state.options.websocketUrl).host !== authority
+    (state.options.authority || new URL(state.options.websocketUrl).host) !==
+      authority
   ) {
     throw new Error(
       'This file belongs to a different or disconnected Codespace.',

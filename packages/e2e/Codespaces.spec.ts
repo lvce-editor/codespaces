@@ -6,7 +6,12 @@ test('Pages export loads and exposes Codespaces commands', async ({ page }) => {
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench', { timeout: 45_000 })
   await page.keyboard.press('F1')
-  await page.keyboard.type('Codespaces:')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces:')
   await expect(
     page.getByText('Codespaces: Connect to Codespace', { exact: true }),
   ).toBeVisible()
@@ -35,6 +40,12 @@ test('signed-out setup asks for the existing LVCE login', async ({ page }) => {
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
   await page.keyboard.press('F1')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Set Up a Codespace')
   await page
     .getByRole('option', {
       name: 'Codespaces: Set Up a Codespace',
