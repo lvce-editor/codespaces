@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { WebSocket } from 'ws'
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, rm, glob } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
@@ -11,6 +10,13 @@ import { createGateway } from '../server/src/Gateway.ts'
 let backend: ChildProcess
 let gateway: Awaited<ReturnType<typeof createGateway>>
 let workspace: string
+let originalExtension: { path: string; source: string } | undefined
+test.afterEach(async () => {
+  if (originalExtension) {
+    await writeFile(originalExtension.path, originalExtension.source)
+    originalExtension = undefined
+  }
+})
 
 test.beforeAll(async () => {
   workspace = await mkdtemp(path.join(tmpdir(), 'lvce-codespaces-e2e-'))
@@ -196,33 +202,34 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     }
     await route.fulfill({ json: {} })
   })
-  await page.routeWebSocket(
-    'wss://lvce-editor.dev/codespaces/connections/**',
-    (route) => {
-      const target = new URL(route.url())
-      target.protocol = 'ws:'
-      target.host = `127.0.0.1:${gateway.port}`
-      target.pathname = target.pathname.replace(
-        `/codespaces/connections/${id}`,
-        '',
-      )
-      const server = new WebSocket(target, { origin: 'http://127.0.0.1:4173' })
-      const pending: Array<string | Buffer> = []
-      route.onMessage((message) => {
-        if (server.readyState === WebSocket.OPEN) server.send(message)
-        else pending.push(message)
-      })
-      server.on('open', () => {
-        for (const message of pending) server.send(message)
-        pending.length = 0
-      })
-      server.on('message', (data, binary) =>
-        route.send(binary ? Buffer.from(data as ArrayBuffer) : data.toString()),
-      )
-      server.on('error', () => route.close())
-      server.on('close', () => route.close())
-      route.onClose(() => server.terminate())
-    },
+  // Playwright cannot route WebSockets created in workers. Substitute only the
+  // fixture transport destination in the served extension, leaving the actual
+  // ticket exchange, RPC, and remote filesystem implementation intact.
+  const [extensionPath] = await Array.fromAsync(
+    glob('dist/**/codespacesMain.js'),
+  )
+  originalExtension = {
+    path: extensionPath,
+    source: await readFile(extensionPath, 'utf8'),
+  }
+  const shim = `const fixtureWebSocketUrl = (url) => {
+    if (url.origin === 'wss://lvce-editor.dev' && url.pathname.startsWith('/codespaces/connections/${id}/')) {
+      url.protocol = 'ws:';
+      url.host = '127.0.0.1:${gateway.port}';
+      url.pathname = url.pathname.replace('/codespaces/connections/${id}', '');
+    }
+    return url.href;
+  };\n`
+  // Return the fixture destination to filesystem and core process workers.
+  // afterEach restores the artifact before CI can upload it to GitHub Pages.
+  expect(originalExtension.source).toContain('return url.href;')
+  await writeFile(
+    extensionPath,
+    shim +
+      originalExtension.source.replace(
+        'return url.href;',
+        'return fixtureWebSocketUrl(url);',
+      ),
   )
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
@@ -262,6 +269,9 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     page.getByText('codespaces-proof.txt', { exact: true }),
   ).toBeVisible({ timeout: 45_000 })
   await page.getByText('codespaces-proof.txt', { exact: true }).dblclick()
+  await expect(
+    page.getByText('Hello from the real remote LVCE backend!', { exact: true }),
+  ).toBeVisible()
   await page.keyboard.press('Control+End')
   await page.keyboard.insertText('Browser-only connection saved this.')
   await page.keyboard.press('Control+s')
@@ -269,6 +279,12 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     .poll(() => readFile(path.join(workspace, 'codespaces-proof.txt'), 'utf8'))
     .toContain('Browser-only connection saved this.')
   await page.keyboard.press('F1')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Stop Codespace')
   await page
     .getByRole('option', { name: 'Codespaces: Stop Codespace', exact: true })
     .click()
