@@ -16,9 +16,9 @@
   },
   "devDependencies": {
     "@lvce-editor/api": "9.25.0",
-    "@lvce-editor/server": "0.113.2",
-    "@lvce-editor/shared-process": "0.113.2",
-    "@lvce-editor/static-server": "0.113.2",
+    "@lvce-editor/server": "0.113.14",
+    "@lvce-editor/shared-process": "0.113.14",
+    "@lvce-editor/static-server": "0.113.14",
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",

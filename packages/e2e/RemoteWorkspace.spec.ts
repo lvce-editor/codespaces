@@ -7,6 +7,7 @@ import path from 'node:path'
 import { createInterface } from 'node:readline'
 import { createGateway } from '../server/src/Gateway.ts'
 
+const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`
 let backend: ChildProcess
 let gateway: Awaited<ReturnType<typeof createGateway>>
 let workspace: string
@@ -55,7 +56,7 @@ test.beforeAll(async () => {
   // Only the identity provider is a fixture. The gateway and LVCE backend are real.
   gateway = await createGateway({
     owner: 'test-owner',
-    allowedOrigin: 'http://127.0.0.1:4173',
+    allowedOrigin: browserOrigin,
     publicUrl: 'http://127.0.0.1:0',
     workspacePath: workspace,
     backendPort,
@@ -105,6 +106,12 @@ test('connects the Pages editor to real remote files', async ({
   })
   await page.keyboard.press('F1')
   await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Connect to Manual Gateway')
+  await page
     .getByRole('option', {
       name: 'Codespaces: Connect to Manual Gateway',
       exact: true,
@@ -140,7 +147,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     `http://127.0.0.1:${gateway.port}/auth/connect`,
     {
       headers: {
-        Origin: 'http://127.0.0.1:4173',
+        Origin: browserOrigin,
         Authorization: 'Bearer test-lvce-token',
       },
     },
@@ -163,7 +170,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
         `http://127.0.0.1:${gateway.port}/auth/websocket-ticket`,
         {
           headers: {
-            Origin: 'http://127.0.0.1:4173',
+            Origin: browserOrigin,
             Authorization: `Bearer ${sessionToken}`,
           },
         },
@@ -253,6 +260,12 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     })
   })
   await page.keyboard.press('F1')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Set Up a Codespace')
   await page
     .getByRole('option', {
       name: 'Codespaces: Set Up a Codespace',
