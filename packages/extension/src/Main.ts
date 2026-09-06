@@ -8,110 +8,251 @@ import {
   showQuickPick,
   showNotification,
 } from '@lvce-editor/api'
-import { getAccountId, getToken } from './Auth.ts'
+import { getToken } from './Auth.ts'
+import * as Api from './CodespacesApi.ts'
 import * as Connection from './Connection.ts'
 import { fileSystem } from './FileSystem.ts'
-import { getEndpoint, getSetupCommand, siteUrl } from './Urls.ts'
+import { backendUrl, siteUrl, getEndpoint } from './Urls.ts'
 import { connectToGateway } from './Connect.ts'
 
+let output: ReturnType<typeof createOutputChannel> | undefined
+let busy = false
 let activated = false
-let connecting = false
-let operationId = 0
-
-export const setup = async (): Promise<void> => {
-  const owner = await getAccountId(await getToken())
-  const channel = createOutputChannel('codespaces')
-  await channel.replace(
-    `Run this command in your Codespace terminal (Node.js 24+):\n\n${getSetupCommand(owner)}\n\nThen forward port 3774 as Public. The gateway requires your LVCE account.\nInstructions: ${siteUrl}setup.html\n`,
-  )
+let operation: AbortController | undefined
+let session: string | undefined
+let connectedName: string | undefined
+const progress = async (message: string): Promise<void> => {
+  output ||= createOutputChannel('codespaces')
+  await output.replace(message)
   await openOutputView({ channel: 'codespaces' })
 }
-
-export const connect = async (value?: string): Promise<void> => {
-  if (connecting) return
-  connecting = true
-  const operation = ++operationId
+const pickCodespace = async (
+  placeholder: string,
+): Promise<Api.Codespace | undefined> => {
+  const codespaces = await Api.list()
+  if (!codespaces.length)
+    throw new Error(
+      'No Codespaces found. Run Codespaces: Set Up a Codespace to create one.',
+    )
+  const items = codespaces.map((value) => ({
+    label: value.name,
+    value: value.name,
+    description: `${value.repository.full_name} · ${value.state}`,
+  }))
+  const selected = await showQuickPick({ items, placeholder })
+  const name =
+    typeof selected === 'string'
+      ? selected
+      : (selected as { label?: string } | undefined)?.label
+  return codespaces.find((value) => value.name === name)
+}
+const release = async (): Promise<void> => {
+  operation?.abort()
+  operation = undefined
+  const previous = session
+  session = undefined
+  connectedName = undefined
+  await Connection.dispose()
+  if (previous)
+    await Api.request(`/connections/${previous}`, 'DELETE').catch(() => {})
+}
+const openWorkspace = async (
+  name: string,
+  value: { sessionToken: string; websocketUrl: string; workspacePath: string },
+  signal: AbortSignal,
+): Promise<void> => {
+  if (signal.aborted) return
+  Connection.set({
+    ...value,
+    authority: name,
+    refreshLvceToken: value.websocketUrl.startsWith(
+      'wss://lvce-editor.dev/codespaces/connections/',
+    ),
+  })
+  connectedName = name
+  const uri = new URL(`codespaces://${name}`)
+  uri.pathname = value.workspacePath
+  await executeCommand('Workspace.setUri', uri.href, '/', {
+    command: Connection.commandId,
+    workspacePath: value.workspacePath,
+  })
+}
+const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
+  await release()
+  const controller = new AbortController()
+  operation = controller
+  let created: string | undefined
   try {
-    const input =
-      value ||
-      (await showQuickPick({
-        items: [],
-        acceptInput: true,
-        placeholder:
-          'Codespace name or forwarded HTTPS URL (run Codespaces: Set Up a Codespace first)',
-      }))
-    if (typeof input !== 'string' || !input) return
-    const endpoint = getEndpoint(input)
-    const result = await connectToGateway(endpoint, await getToken())
-    if (operation !== operationId) return
-    await Connection.dispose()
-    Connection.set(result)
-    const uri = new URL(`codespaces://${endpoint.host}`)
-    uri.pathname = result.workspacePath
-    // Let the command finish before changing the workspace / extension host.
-    setTimeout(() => {
-      if (operation !== operationId) return
-      void executeCommand('Workspace.setUri', uri.href, '/', {
-        command: Connection.commandId,
-        workspacePath: result.workspacePath,
-      }).catch(async () => {
-        await Connection.dispose()
-        await showNotification(
-          'error',
-          'Could not open the Codespaces workspace. Run Connect again.',
-        )
-      })
-    }, 0)
-  } finally {
-    connecting = false
+    await progress(
+      `Starting ${codespace.name}…\nCodespaces compute is billed by GitHub while running.\nRun Codespaces: Disconnect to cancel.\n`,
+    )
+    await Api.ensureAvailable(codespace, controller.signal)
+    await progress(
+      `Setting up and connecting to ${codespace.name} over a private tunnel…\nThe first connection downloads the LVCE runtime.\nRun Codespaces: Disconnect to cancel.\n`,
+    )
+    const result = await Api.prepare(
+      codespace.name,
+      controller.signal,
+      (id) => {
+        created = id
+        if (!controller.signal.aborted) session = id
+      },
+    )
+    if (controller.signal.aborted) throw new Error('Connection cancelled')
+    await openWorkspace(codespace.name, result, controller.signal)
+    await progress(
+      `Connected to ${codespace.name}.\nUse Codespaces: Stop Codespace to stop GitHub compute when finished. Disconnect only closes the editor connection.\n`,
+    )
+  } catch (error) {
+    if (created)
+      await Api.request(`/connections/${created}`, 'DELETE').catch(() => {})
+    if (operation === controller) {
+      session = undefined
+      operation = undefined
+      await Connection.dispose()
+    }
+    if (!controller.signal.aborted) throw error
   }
 }
-
-const report =
-  <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
-  async (...args: T): Promise<void> => {
-    try {
-      await fn(...args)
-    } catch (error) {
-      await showNotification(
-        'error',
-        error instanceof Error ? error.message : 'Codespaces command failed',
-      )
-    }
+export const setup = async (): Promise<void> => {
+  await getToken()
+  const repository = await showQuickPick({
+    items: [],
+    acceptInput: true,
+    placeholder: 'Repository to create a Codespace in (owner/name)',
+  })
+  if (typeof repository !== 'string' || !repository) return
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
+    throw new Error('Enter a repository as owner/name.')
+  const confirmation = await showQuickPick({
+    items: [
+      {
+        label: 'Create and Connect',
+        value: 'Create and Connect',
+        description: `Create a Codespace in ${repository}. GitHub compute and storage charges may apply.`,
+      },
+      { label: 'Cancel', value: 'Cancel', description: '' },
+    ],
+    placeholder: 'Create Codespace using GitHub defaults?',
+  })
+  if (
+    confirmation !== 'Create and Connect' &&
+    (confirmation as { label?: string })?.label !== 'Create and Connect'
+  )
+    return
+  await progress(`Creating Codespace in ${repository}…`)
+  const codespace = await Api.request<Api.Codespace>('', 'POST', { repository })
+  await connectSelected(codespace)
+}
+export const connect = async (): Promise<void> => {
+  const codespace = await pickCodespace('Select a Codespace to connect to')
+  if (codespace) await connectSelected(codespace)
+}
+const start = async (): Promise<void> => {
+  const codespace = await pickCodespace('Select a Codespace to start')
+  if (!codespace) return
+  await Api.request(`/${codespace.name}/start`, 'POST')
+  await progress(
+    `Starting ${codespace.name}. Run Codespaces: Connect to Codespace when ready.`,
+  )
+}
+const stop = async (): Promise<void> => {
+  const codespace = await pickCodespace('Select a Codespace to stop')
+  if (!codespace) return
+  await Api.request(`/${codespace.name}/stop`, 'POST')
+  if (connectedName === codespace.name) {
+    await release()
+    await executeCommand('Workspace.setUri', 'memfs:///')
   }
-
+  await progress(
+    `Stopped ${codespace.name}. GitHub storage charges may still apply.`,
+  )
+}
+const report = (fn: () => Promise<void>) => async (): Promise<void> => {
+  try {
+    await fn()
+  } catch (error) {
+    await showNotification(
+      'error',
+      error instanceof Error ? error.message : 'Codespaces command failed',
+    )
+  }
+}
 export const activate = async (): Promise<void> => {
   if (activated) return
   await activateApi()
   registerFileSystemProvider(fileSystem)
-  registerCommand({
-    id: 'codespaces.setup',
-    execute: async () => {
-      setTimeout(() => void report(setup)(), 0)
+  const commands = {
+    'codespaces.setup': setup,
+    'codespaces.connect': connect,
+    'codespaces.start': start,
+    'codespaces.stop': stop,
+    'codespaces.authorize': async () => {
+      await executeCommand(
+        'Open.openUrl',
+        `${backendUrl}/auth/github?returnTo=${encodeURIComponent(siteUrl)}`,
+        true,
+      )
     },
-  })
-  registerCommand({
-    id: 'codespaces.connect',
-    execute: async (value?: string) => {
-      setTimeout(() => void report(connect)(value), 0)
+    'codespaces.disconnect': async () => {
+      await release()
+      await executeCommand('Workspace.setUri', 'memfs:///')
     },
-  })
+    // Retained for previously configured gateways and transport regression tests.
+    'codespaces.connectGateway': async () => {
+      const input = await showQuickPick({
+        items: [],
+        acceptInput: true,
+        placeholder: 'Codespace forwarded HTTPS URL',
+      })
+      if (typeof input !== 'string' || !input) return
+      await release()
+      const controller = new AbortController()
+      operation = controller
+      const endpoint = getEndpoint(input)
+      await openWorkspace(
+        endpoint.host,
+        await connectToGateway(endpoint, await getToken()),
+        controller.signal,
+      )
+    },
+  }
+  for (const [id, callback] of Object.entries(commands))
+    registerCommand({
+      id,
+      execute: async () => {
+        setTimeout(
+          () =>
+            void report(async () => {
+              if (
+                id === 'codespaces.disconnect' ||
+                id === 'codespaces.authorize'
+              ) {
+                await callback()
+                return
+              }
+              if (busy)
+                throw new Error(
+                  'A Codespaces operation is already in progress. Use Disconnect to cancel it.',
+                )
+              busy = true
+              try {
+                await callback()
+              } finally {
+                busy = false
+              }
+            })(),
+          0,
+        )
+      },
+    })
   registerCommand({
     id: Connection.commandId,
     execute: Connection.getWebSocketUrl,
-  })
-  registerCommand({
-    id: 'codespaces.disconnect',
-    execute: report(async () => {
-      operationId++
-      await Connection.dispose()
-      await executeCommand('Workspace.setUri', 'memfs:///')
-    }),
   })
   activated = true
 }
 export const deactivate = async (): Promise<void> => {
   activated = false
-  operationId++
-  await Connection.dispose()
+  await release()
 }
