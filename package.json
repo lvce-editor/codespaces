@@ -1,0 +1,34 @@
+{
+  "name": "builtin.codespaces-monorepo",
+  "private": true,
+  "version": "0.0.0-dev",
+  "type": "module",
+  "description": "GitHub Codespaces for LVCE Editor",
+  "license": "MIT",
+  "scripts": {
+    "build": "node packages/build/src/build.ts",
+    "build:static": "node packages/build/src/build-static.ts",
+    "test": "node --test packages/extension/test/*.test.ts packages/server/test/*.test.ts",
+    "test:e2e": "playwright test",
+    "type-check": "tsc --noEmit",
+    "lint": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@lvce-editor/api": "9.25.0",
+    "@lvce-editor/server": "0.113.2",
+    "@lvce-editor/shared-process": "0.113.2",
+    "@lvce-editor/static-server": "0.113.2",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "ws": "^8.18.3"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "builtin.codespaces",
+  "name": "GitHub Codespaces",
+  "description": "Set up and connect to GitHub Codespaces from LVCE Editor",
+  "repository": "https://github.com/lvce-editor/codespaces",
+  "browser": "dist/codespacesMain.js",
+  "isolated": true,
+  "preserveRuntimeOnWorkspaceChange": true,
+  "compatibility": {
+    "web": true
+  },
+  "contentSecurityPolicy": [
+    "default-src 'none'",
+    "script-src 'self'",
+    "connect-src https: wss: http://127.0.0.1:* ws://127.0.0.1:*"
+  ],
+  "activation": [
+    "onCommand:codespaces.setup",
+    "onCommand:codespaces.connect",
+    "onCommand:codespaces.getWebSocketUrl",
+    "onCommand:codespaces.disconnect",
+    "onFileSystem:codespaces"
+  ],
+  "commands": [
+    {
+      "id": "codespaces.setup",
+      "label": "Codespaces: Set Up a Codespace"
+    },
+    {
+      "id": "codespaces.connect",
+      "label": "Codespaces: Connect to Codespace"
+    },
+    {
+      "id": "codespaces.disconnect",
+      "label": "Codespaces: Disconnect"
+    },
+    {
+      "id": "codespaces.getWebSocketUrl",
+      "internal": true
+    }
+  ],
+  "fileSystemProviders": [
+    {
+      "id": "codespaces"
+    }
+  ],
+  "outputChannels": [
+    {
+      "id": "codespaces",
+      "label": "Codespaces"
+    }
+  ]
+}
