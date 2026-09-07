@@ -594,8 +594,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     .click()
   const ports = page.locator('.Ports')
   await expect(ports.getByText('3000', { exact: true })).toBeVisible()
-  await expect(ports.locator('a')).toHaveAttribute(
-    'href',
+  await expect(ports.getByRole('link')).toHaveText(
     'https://browser-test-codespace-3000.app.github.dev/',
   )
   await expect(
