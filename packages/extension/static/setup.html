@@ -69,6 +69,23 @@
       Custom devcontainers without SSH need the
       <a href="https://cli.github.com/manual/gh_codespace_ssh">sshd feature</a>.
     </p>
+    <h2>If GitHub cannot start an SSH server</h2>
+    <p>
+      A Codespace can be running without an SSH server in its custom container.
+      Run <strong>Codespaces: Open in Browser</strong> to open GitHub's editor.
+      For a Debian/Ubuntu devcontainer, add this entry to the
+      <code>features</code> object in
+      <code>.devcontainer/devcontainer.json</code>, preserving the existing
+      settings:
+    </p>
+    <pre><code>"ghcr.io/devcontainers/features/sshd:1": { "version": "latest" }</code></pre>
+    <p>
+      Then run <strong>Codespaces: Rebuild Container</strong> in GitHub's
+      editor. Preserve work outside <code>/workspaces</code> before rebuilding.
+      Installing <code>openssh-server</code> manually requires administrator
+      access and only repairs the current container. LVCE can install its
+      runtime after SSH works.
+    </p>
     <p>
       The LVCE backend must be running the Codespaces-enabled version.
       <a href="https://github.com/lvce-editor/codespaces"
