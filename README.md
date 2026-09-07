@@ -92,3 +92,30 @@ Each package owns its dependencies and TypeScript configuration:
 Root test and type-check commands run the corresponding workspace scripts. To run a package's tests on their own, use `npm test --workspace=packages/extension` or `npm test --workspace=packages/server`.
 
 `npm run dev` serves the export at `http://127.0.0.1:4173/codespaces/`. CI runs unit and Chromium tests and deploys `main` to Pages. Browser tests cover creation, connection, file saving, and stopping using separate GitHub and LVCE API fixtures and a real LVCE file backend. They verify request destinations, credential separation, and one GitHub token handoff per management command. Backend-2 separately tests ownership, private relay traffic, ticket replay rejection, and cancellation. These fixtures do not establish that a real GitHub-hosted Codespace has been tested.
+
+### Application preview
+
+Configure an explicit forwarded port in `.devcontainer/devcontainer.json` (or
+`.devcontainer.json`) to open the app alongside the editor after connecting:
+
+```json
+{
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Application", "onAutoForward": "openPreview" }
+  }
+}
+```
+
+The first matching port opens in the right-hand preview area at
+`https://CODESPACENAME-3000.app.github.dev/`. JSON comments and trailing commas
+are supported. The container remains responsible for starting the app; use a
+background `postStartCommand` so it also starts when resuming a stopped Codespace.
+The preview uses an iframe, supports app scripts, and provides Reload and Open in
+Browser controls. Private ports retain GitHub authentication and their visibility;
+if sign-in is required, open the app in the browser first. Browser restrictions on
+third-party cookies or an app's frame policy may require using that browser tab.
+Disconnecting clears the embedded app.
+
+This supports explicit port attributes with `openPreview`; process-pattern and
+port-range discovery are not implemented.

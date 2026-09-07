@@ -8,6 +8,7 @@ import {
   activate as activateApi,
   executeCommand,
   registerCommand,
+  registerView,
   registerFileSystemProvider,
   createOutputChannel,
   openOutputView,
@@ -27,7 +28,14 @@ import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
 import { createStartupProgress } from '../StartupProgress/StartupProgress.ts'
 import { connectToGateway } from '../Connect/Connect.ts'
 import { openCreationLog } from '../CreationLog/CreationLog.ts'
+import { readAppPreview } from '../AppPreview/AppPreview.ts'
+import {
+  previewView,
+  previewViewId,
+  setAppPreview,
+} from '../AppPreviewView/AppPreviewView.ts'
 
+let previewRegistration: ReturnType<typeof registerView> | undefined
 let output: ReturnType<typeof createOutputChannel> | undefined
 let busy = false
 let activated = false
@@ -69,6 +77,7 @@ const release = async (cancelManagement = true): Promise<void> => {
   const previous = session
   session = undefined
   connectedName = undefined
+  await setAppPreview(undefined).catch(() => {})
   await Connection.dispose()
   if (previous)
     await Api.request(`/connections/${previous}`, 'DELETE').catch(() => {})
@@ -140,6 +149,33 @@ const connectSelected = async (
     if (controller.signal.aborted)
       throw new ConnectionCancelledError('Connection cancelled')
     await update(`Connected to ${codespace.name}.`, true)
+    // A preview failure must not tear down a successfully connected workspace.
+    try {
+      const workspaceUri = new URL(`codespaces://${codespace.name}`)
+      workspaceUri.pathname = result.workspacePath
+      const preview = await readAppPreview(
+        workspaceUri.href,
+        codespace.name,
+        fileSystem.readFile,
+        controller.signal,
+      )
+      controller.signal.throwIfAborted()
+      await setAppPreview(preview)
+      if (preview) {
+        controller.signal.throwIfAborted()
+        await executeCommand(
+          'Layout.showPreview',
+          previewViewId,
+          'ExtensionView',
+        )
+      }
+    } catch (error) {
+      if (!controller.signal.aborted)
+        await showNotification(
+          'error',
+          `Could not open application preview: ${error instanceof Error ? error.message : error}`,
+        )
+    }
   } catch (error) {
     await update(
       controller.signal.aborted
@@ -361,6 +397,7 @@ export const activate = async (): Promise<void> => {
   if (activated) return
   await activateApi()
   registerFileSystemProvider(fileSystem)
+  previewRegistration = registerView(previewView)
   const commands = {
     'codespaces.setup': setup,
     'codespaces.connect': connect,
@@ -443,4 +480,6 @@ export const activate = async (): Promise<void> => {
 export const deactivate = async (): Promise<void> => {
   activated = false
   await release()
+  previewRegistration?.dispose()
+  previewRegistration = undefined
 }

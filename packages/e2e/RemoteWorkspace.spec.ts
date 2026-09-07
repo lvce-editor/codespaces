@@ -5,7 +5,7 @@ import {
 import { test, expect } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, writeFile, readFile, rm, glob } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, glob } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
@@ -226,6 +226,26 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   context,
   request,
 }) => {
+  await mkdir(path.join(workspace, '.devcontainer'), { recursive: true })
+  await writeFile(
+    path.join(workspace, '.devcontainer/devcontainer.json'),
+    `{
+    // Open the forwarded app next to the remote source code.
+    "forwardPorts": [3000],
+    "portsAttributes": { "3000": { "label": "Bad Apple", "onAutoForward": "openPreview" } }
+  }`,
+  )
+  let previewRequests = 0
+  await context.route(
+    'https://browser-test-codespace-3000.app.github.dev/',
+    (route) => {
+      previewRequests++
+      return route.fulfill({
+        contentType: 'text/html',
+        body: '<h1>Running application</h1><button onclick="this.textContent=\'App is interactive\'">Test app</button>',
+      })
+    },
+  )
   const id = 'a'.repeat(64)
   const operations: string[] = []
   let startupState = 'Provisioning'
@@ -531,6 +551,36 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect
     .poll(() => readFile(path.join(workspace, 'codespaces-proof.txt'), 'utf8'))
     .toContain('Browser-only connection saved this.')
+  const preview = page.locator('iframe.CodespacesPreviewFrame')
+  await expect(preview).toHaveAttribute(
+    'src',
+    'https://browser-test-codespace-3000.app.github.dev/',
+  )
+  const app = page.frameLocator('iframe.CodespacesPreviewFrame')
+  await expect(
+    app.getByRole('heading', { name: 'Running application' }),
+  ).toBeVisible()
+  await app.getByRole('button', { name: 'Test app' }).click()
+  await expect(
+    app.getByRole('button', { name: 'App is interactive' }),
+  ).toBeVisible()
+  const editorBounds = await page.locator('.Editor').first().boundingBox()
+  const previewBounds = await preview.boundingBox()
+  expect(editorBounds!.x + editorBounds!.width).toBeLessThanOrEqual(
+    previewBounds!.x + 1,
+  )
+  await expect(preview).toHaveAttribute(
+    'sandbox',
+    /allow-scripts allow-same-origin/,
+  )
+  await page.screenshot({
+    path: test.info().outputPath('application-preview.png'),
+  })
+  const requestsBeforeReload = previewRequests
+  await page.getByRole('button', { name: 'Reload', exact: true }).click()
+  await expect.poll(() => previewRequests).toBeGreaterThan(requestsBeforeReload)
+  await expect(app.getByRole('button', { name: 'Test app' })).toBeVisible()
+
   await page.locator('.PanelTab[name="Terminals"]').click()
   const terminalInput = page.locator('.xterm-helper-textarea')
   await expect(terminalInput).toBeVisible()
@@ -549,7 +599,15 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     .getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true })
     .getByRole('button', { name: 'Close', exact: true })
     .click()
+  await expect(
+    page.getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true }),
+  ).toHaveCount(0)
   const stopFromPicker = async (): Promise<void> => {
+    // The terminal and app iframe have their own key handlers. Target the
+    // workbench before issuing its command-palette shortcut.
+    await page
+      .getByRole('tree', { name: 'Files Explorer', exact: true })
+      .focus()
     await page.keyboard.press('F1')
     await page
       .getByRole('combobox', {
@@ -569,6 +627,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect
     .poll(() => operations)
     .toContain(`DELETE /codespaces/connections/${id}`)
+  await expect(preview).toHaveCount(0)
   expect(operations).toContain('POST /repos/test/project/codespaces')
   expect(operations).toContain(
     'POST /user/codespaces/browser-test-codespace/start',

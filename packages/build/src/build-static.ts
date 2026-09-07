@@ -13,6 +13,20 @@ const { commitHash } = await exportStatic({
   root,
   extensionPath: join(root, 'packages/extension'),
 })
+// Allow the application frame without broadening the editor's script policy.
+const indexPath = join(root, 'dist/index.html')
+const indexHtml = await readFile(indexPath, 'utf8')
+const framePolicy = "frame-src 'self' blob:;"
+if (!indexHtml.includes(framePolicy))
+  throw new Error('Missing editor frame policy')
+await writeFile(
+  indexPath,
+  indexHtml.replace(
+    framePolicy,
+    "frame-src 'self' blob: https://*.app.github.dev;",
+  ),
+)
+
 // The exporter may replace dist; bundle the opt-in proof after it completes.
 await bundleExperimental()
 await cp(
