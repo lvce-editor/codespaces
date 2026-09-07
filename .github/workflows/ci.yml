@@ -22,12 +22,13 @@ jobs:
       - run: npm run lint
       - run: npm run build:static
       - run: npx playwright install --with-deps chromium
+        working-directory: packages/e2e
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-results
-          path: test-results/
+          path: packages/e2e/test-results/
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
         with:

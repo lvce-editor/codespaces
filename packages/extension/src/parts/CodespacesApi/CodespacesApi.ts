@@ -49,19 +49,39 @@ export const list = async (signal?: AbortSignal): Promise<Codespace[]> => {
   }
   return result
 }
-const sleep = (signal: AbortSignal): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const stop = (): void => {
-      clearTimeout(timer)
-      reject(new Error('Connection cancelled'))
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', stop)
-      resolve()
-    }, 1500)
-    signal.addEventListener('abort', stop, { once: true })
-    if (signal.aborted) stop()
-  })
+export interface Repository {
+  readonly full_name: string
+  readonly private: boolean
+}
+export const listRepositories = async (
+  signal?: AbortSignal,
+): Promise<Repository[]> => {
+  const repositories = new Map<string, Repository>()
+  for (let page = 1; page <= 1000; page++) {
+    const value = await request<{
+      repositories: Repository[]
+      hasMore: boolean
+    }>(`/repositories?page=${page}`, 'GET', undefined, signal)
+    for (const repository of value.repositories)
+      repositories.set(repository.full_name, repository)
+    if (!value.hasMore) return [...repositories.values()]
+  }
+  throw new Error('The GitHub repository list is too large to load.')
+}
+const sleep = async (signal: AbortSignal): Promise<void> => {
+  const { promise, resolve, reject } = Promise.withResolvers<void>()
+  const stop = (): void => {
+    clearTimeout(timer)
+    reject(new Error('Connection cancelled'))
+  }
+  const timer = setTimeout(() => {
+    signal.removeEventListener('abort', stop)
+    resolve()
+  }, 1500)
+  signal.addEventListener('abort', stop, { once: true })
+  if (signal.aborted) stop()
+  return promise
+}
 export const ensureAvailable = async (
   codespace: Codespace,
   signal: AbortSignal,

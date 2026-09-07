@@ -7,7 +7,7 @@ Create, start, stop, and connect to GitHub Codespaces from a static GitHub Pages
 ## Try it
 
 1. Sign in with GitHub through the LVCE account button. If you signed in before Codespaces support was added, run **Codespaces: Authorize GitHub Access** and approve the additional GitHub permission.
-2. Run **Codespaces: Connect to Codespace** (F1) and select a Codespace. A stopped Codespace starts automatically. Alternatively, **Codespaces: Set Up a Codespace** asks for `owner/repository` and creates one using GitHub defaults after confirmation.
+2. Run **Codespaces: Connect to Codespace** (F1) and select a Codespace. A stopped Codespace starts automatically. Alternatively, **Codespaces: Set Up a Codespace** loads a searchable list of repositories from your GitHub account (including subsequent pages), with a manual `owner/repository` option and creates one using GitHub defaults after confirmation.
 3. Wait while the extension installs its runtime and connects. Progress appears in the Codespaces Output panel.
 4. Use **Codespaces: Stop Codespace** when finished to stop GitHub compute. **Disconnect** closes the editor connection or cancels setup; it does not stop the Codespace or remove its storage.
 
@@ -37,8 +37,10 @@ npm run build:static
 npm test
 npm run type-check
 npm run lint
-npx playwright install chromium
+npm exec --workspace=packages/e2e -- playwright install chromium
 npm run test:e2e
 ```
+
+E2e configuration and dependencies live in the `packages/e2e` npm workspace.
 
 `node packages/build/src/serve-static.ts` serves the export at `http://127.0.0.1:4173/codespaces/`. CI runs unit and Chromium tests and deploys `main` to Pages. Browser tests cover creation, connection, file saving, and stopping using a fixture management API and a real LVCE file backend. Backend-2 separately tests ownership, private relay traffic, ticket replay rejection, and cancellation. These fixtures do not establish that a real GitHub-hosted Codespace has been tested.

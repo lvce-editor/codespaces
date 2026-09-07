@@ -5,8 +5,10 @@ import { mkdtemp, writeFile, readFile, rm, glob } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
+import { fileURLToPath } from 'node:url'
 import { createGateway } from '../server/src/parts/Gateway/Gateway.ts'
 
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`
 let backend: ChildProcess
 let gateway: Awaited<ReturnType<typeof createGateway>>
@@ -29,30 +31,30 @@ test.beforeAll(async () => {
     process.execPath,
     [
       process.env.LVCE_CODESPACES_TEST_BACKEND ||
-        'node_modules/@lvce-editor/server/src/server.js',
+        fileURLToPath(import.meta.resolve('@lvce-editor/server/src/server.js')),
       '--as-remote-ssh-server',
       '--port=0',
       '--connection-token=test-backend-secret',
       workspace,
     ],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] },
   )
-  const backendPort = await new Promise<number>((resolve, reject) => {
-    const lines = createInterface({ input: backend.stdout! })
-    const timer = setTimeout(
-      () => reject(new Error('Backend startup timeout')),
-      20_000,
-    )
-    backend.once('error', reject)
-    lines.on('line', (line) => {
-      const match = /listening on http:\/\/127\.0\.0\.1:(\d+)/.exec(line)
-      if (match) {
-        clearTimeout(timer)
-        lines.close()
-        resolve(Number(match[1]))
-      }
-    })
+  const { promise, resolve, reject } = Promise.withResolvers<number>()
+  const lines = createInterface({ input: backend.stdout! })
+  const timer = setTimeout(
+    () => reject(new Error('Backend startup timeout')),
+    20_000,
+  )
+  backend.once('error', reject)
+  lines.on('line', (line) => {
+    const match = /listening on http:\/\/127\.0\.0\.1:(\d+)/.exec(line)
+    if (match) {
+      clearTimeout(timer)
+      lines.close()
+      resolve(Number(match[1]))
+    }
   })
+  const backendPort = await promise
   // Only the identity provider is a fixture. The gateway and LVCE backend are real.
   gateway = await createGateway({
     owner: 'test-owner',
@@ -86,23 +88,23 @@ test('connects the Pages editor to real remote files', async ({
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
   await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open('auth-worker', 1)
-      request.onupgradeneeded = () => request.result.createObjectStore('auth')
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
-        const database = request.result
-        const transaction = database.transaction('auth', 'readwrite')
-        transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
-        transaction
-          .objectStore('auth')
-          .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
-        transaction.oncomplete = () => {
-          database.close()
-          resolve()
-        }
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
+    const request = indexedDB.open('auth-worker', 1)
+    request.onupgradeneeded = () => request.result.createObjectStore('auth')
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {
+      const database = request.result
+      const transaction = database.transaction('auth', 'readwrite')
+      transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+      transaction
+        .objectStore('auth')
+        .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+      transaction.oncomplete = () => {
+        database.close()
+        resolve()
       }
-    })
+    }
+    await promise
   })
   await page.keyboard.press('F1')
   await page
@@ -143,6 +145,14 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
 }) => {
   const id = 'a'.repeat(64)
   const operations: string[] = []
+  const repositoryPages: number[] = []
+  const repositories = [
+    ...Array.from({ length: 200 }, (_, i) => ({
+      full_name: `test/repository-${i}`,
+      private: false,
+    })),
+    { full_name: 'test/project', private: true },
+  ]
   const auth = await request.post(
     `http://127.0.0.1:${gateway.port}/auth/connect`,
     {
@@ -176,6 +186,20 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
         },
       )
       await route.fulfill({ json: await response.json() })
+      return
+    }
+    if (pathname === '/codespaces/repositories') {
+      const pageNumber = Number(new URL(req.url()).searchParams.get('page'))
+      repositoryPages.push(pageNumber)
+      await route.fulfill({
+        json: {
+          repositories: repositories.slice(
+            (pageNumber - 1) * 100,
+            pageNumber * 100,
+          ),
+          hasMore: pageNumber * 100 < repositories.length,
+        },
+      })
       return
     }
     operations.push(`${req.method()} ${pathname}`)
@@ -213,7 +237,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   // fixture transport destination in the served extension, leaving the actual
   // ticket exchange, RPC, and remote filesystem implementation intact.
   const [extensionPath] = await Array.fromAsync(
-    glob('dist/**/codespacesMain.js'),
+    glob(path.join(repoRoot, 'dist/**/codespacesMain.js')),
   )
   originalExtension = {
     path: extensionPath,
@@ -241,23 +265,23 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
   await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open('auth-worker', 1)
-      req.onupgradeneeded = () => req.result.createObjectStore('auth')
-      req.onerror = () => reject(req.error)
-      req.onsuccess = () => {
-        const database = req.result
-        const transaction = database.transaction('auth', 'readwrite')
-        transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
-        transaction
-          .objectStore('auth')
-          .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
-        transaction.oncomplete = () => {
-          database.close()
-          resolve()
-        }
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
+    const req = indexedDB.open('auth-worker', 1)
+    req.onupgradeneeded = () => req.result.createObjectStore('auth')
+    req.onerror = () => reject(req.error)
+    req.onsuccess = () => {
+      const database = req.result
+      const transaction = database.transaction('auth', 'readwrite')
+      transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+      transaction
+        .objectStore('auth')
+        .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+      transaction.oncomplete = () => {
+        database.close()
+        resolve()
       }
-    })
+    }
+    await promise
   })
   await page.keyboard.press('F1')
   await page
@@ -276,7 +300,10 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     name: /^Repository to create/,
   })
   await repository.fill('test/project')
-  await repository.press('Enter')
+  await page
+    .getByRole('option', { name: /^test\/project/ })
+    .click({ timeout: 5000 })
+  expect(repositoryPages).toEqual([1, 2, 3])
   await page.getByRole('option', { name: /Create and Connect/ }).click()
   await expect(
     page.getByText('codespaces-proof.txt', { exact: true }),

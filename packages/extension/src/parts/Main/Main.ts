@@ -32,7 +32,7 @@ const pickCodespace = async (
   const codespaces = await Api.list()
   if (!codespaces.length)
     throw new Error(
-      'No Codespaces found. Run Codespaces: Set Up a Codespace to create one.',
+      'No existing Codespaces found. Run Codespaces: Set Up a Codespace to create one from a GitHub repository.',
     )
   const items = codespaces.map((value) => ({
     label: value.name,
@@ -116,11 +116,38 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
 }
 export const setup = async (): Promise<void> => {
   await getToken()
-  const repository = await showQuickPick({
-    items: [],
-    acceptInput: true,
-    placeholder: 'Repository to create a Codespace in (owner/name)',
+  await progress('Loading your GitHub repositories…')
+  const repositories = await Api.listRepositories()
+  const manualLabel = 'Enter a repository manually…'
+  const selected = await showQuickPick({
+    items: [
+      ...repositories.map((repository) => ({
+        label: repository.full_name,
+        value: repository.full_name,
+        description: repository.private ? 'Private' : 'Public',
+      })),
+      {
+        label: manualLabel,
+        value: manualLabel,
+        description: 'Type owner/repository',
+      },
+    ],
+    placeholder: repositories.length
+      ? 'Repository to create a Codespace in (search your GitHub repositories)'
+      : 'No repositories returned by GitHub. Enter one manually.',
   })
+  const name =
+    typeof selected === 'string'
+      ? selected
+      : (selected as { label?: string } | undefined)?.label
+  const repository =
+    name === manualLabel
+      ? await showQuickPick({
+          items: [],
+          acceptInput: true,
+          placeholder: 'Enter repository as owner/name',
+        })
+      : name
   if (typeof repository !== 'string' || !repository) return
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
     throw new Error('Enter a repository as owner/name.')
