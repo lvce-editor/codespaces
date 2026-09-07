@@ -2,7 +2,9 @@ import { InvalidPathError } from '../../shared/src/Errors.ts'
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
-const root = path.resolve('dist')
+import { root as repositoryRoot } from './root.ts'
+
+const root = path.join(repositoryRoot, 'dist')
 const mime: Record<string, string> = {
   '.js': 'text/javascript',
   '.mjs': 'text/javascript',

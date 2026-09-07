@@ -6,24 +6,18 @@
   "description": "GitHub Codespaces for LVCE Editor",
   "license": "MIT",
   "scripts": {
-    "build": "node packages/build/src/build.ts",
-    "build:static": "node packages/build/src/build-static.ts",
-    "test": "node --test packages/extension/test/*.test.ts packages/server/test/*.test.ts",
+    "build": "npm run build --workspace=packages/build",
+    "build:static": "npm run build:static --workspace=packages/build",
+    "test": "npm test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspace=packages/e2e --",
-    "type-check": "tsc --noEmit && npm run type-check --workspace=packages/e2e",
+    "type-check": "npm run type-check --workspaces --if-present",
     "lint": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "dev": "npm run dev --workspace=packages/build"
   },
   "devDependencies": {
-    "@lvce-editor/api": "9.25.0",
-    "@lvce-editor/shared-process": "0.113.21",
-    "@lvce-editor/static-server": "0.113.21",
-    "@types/node": "^24.0.0",
-    "@types/ws": "^8.18.1",
-    "esbuild": "^0.28.2",
     "prettier": "^3.6.2",
-    "typescript": "^6.0.3",
-    "ws": "^8.18.3"
+    "typescript": "^6.0.3"
   },
   "prettier": {
     "semi": false,

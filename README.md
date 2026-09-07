@@ -72,6 +72,14 @@ npm exec --workspace=packages/e2e -- playwright install chromium
 npm run test:e2e
 ```
 
-E2e configuration and dependencies live in the `packages/e2e` npm workspace.
+Each package owns its dependencies and TypeScript configuration:
 
-`node packages/build/src/serve-static.ts` serves the export at `http://127.0.0.1:4173/codespaces/`. CI runs unit and Chromium tests and deploys `main` to Pages. Browser tests cover creation, connection, file saving, and stopping using separate GitHub and LVCE API fixtures and a real LVCE file backend. They verify request destinations, credential separation, and one GitHub token handoff per management command. Backend-2 separately tests ownership, private relay traffic, ticket replay rejection, and cancellation. These fixtures do not establish that a real GitHub-hosted Codespace has been tested.
+- `packages/extension`: Codespaces commands, authentication, and remote filesystem integration.
+- `packages/server`: remote runtime setup and the manual gateway.
+- `packages/shared`: errors shared by the extension and server.
+- `packages/build`: extension bundling, the Pages export, and the local static server.
+- `packages/e2e`: browser tests and Playwright configuration.
+
+Root test and type-check commands run the corresponding workspace scripts. To run a package's tests on their own, use `npm test --workspace=packages/extension` or `npm test --workspace=packages/server`.
+
+`npm run dev` serves the export at `http://127.0.0.1:4173/codespaces/`. CI runs unit and Chromium tests and deploys `main` to Pages. Browser tests cover creation, connection, file saving, and stopping using separate GitHub and LVCE API fixtures and a real LVCE file backend. They verify request destinations, credential separation, and one GitHub token handoff per management command. Backend-2 separately tests ownership, private relay traffic, ticket replay rejection, and cancellation. These fixtures do not establish that a real GitHub-hosted Codespace has been tested.

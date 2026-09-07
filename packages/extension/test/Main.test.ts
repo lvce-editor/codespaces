@@ -6,9 +6,9 @@ for (const outcome of ['available', 'unavailable', 'cancelled'] as const) {
   test(`failed connection opens its creation log: ${outcome}`, async (t) => {
     const result = await build({
       stdin: {
-        contents: `export * from './packages/extension/src/parts/Main/Main.ts';
+        contents: `export * from '../src/parts/Main/Main.ts';
         export { commands, output, opened, openedSignal, files, logs } from '@lvce-editor/api';`,
-        resolveDir: process.cwd(),
+        resolveDir: import.meta.dirname,
       },
       bundle: true,
       format: 'esm',

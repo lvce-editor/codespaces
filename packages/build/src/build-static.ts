@@ -1,22 +1,29 @@
-import './build.ts'
 import { cp, readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { bundle } from './bundle.ts'
+import { root } from './root.ts'
+
 const { exportStatic } = await import(
   import.meta.resolve('@lvce-editor/shared-process')
 )
 
+await bundle()
 process.env.PATH_PREFIX = '/codespaces'
 const { commitHash } = await exportStatic({
-  root: process.cwd(),
-  extensionPath: 'packages/extension',
+  root,
+  extensionPath: join(root, 'packages/extension'),
 })
 await cp(
-  'packages/extension/dist',
-  `dist/${commitHash}/extensions/builtin.codespaces/dist`,
+  join(root, 'packages/extension/dist'),
+  join(root, `dist/${commitHash}/extensions/builtin.codespaces/dist`),
   { recursive: true },
 )
-await cp('.tmp/setup/setup.mjs', 'dist/setup.mjs')
-await cp('packages/extension/static/setup.html', 'dist/setup.html')
-const callbackPath = 'dist/auth/callback.html'
+await cp(join(root, '.tmp/setup/setup.mjs'), join(root, 'dist/setup.mjs'))
+await cp(
+  join(root, 'packages/extension/static/setup.html'),
+  join(root, 'dist/setup.html'),
+)
+const callbackPath = join(root, 'dist/auth/callback.html')
 const callback = await readFile(callbackPath, 'utf8')
 await writeFile(
   callbackPath,
@@ -25,4 +32,4 @@ await writeFile(
     "window.location.replace('/codespaces/')",
   ),
 )
-await writeFile('dist/.nojekyll', '')
+await writeFile(join(root, 'dist/.nojekyll'), '')

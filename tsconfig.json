@@ -10,6 +10,5 @@
     "lib": ["ESNext", "DOM"],
     "types": ["node"]
   },
-  "include": ["packages/**/*.ts"],
-  "exclude": ["packages/e2e"]
+  "include": []
 }

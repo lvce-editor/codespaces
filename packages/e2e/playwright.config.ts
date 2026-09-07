@@ -10,7 +10,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'node packages/build/src/serve-static.ts',
+    command: 'npm run dev',
     cwd: fileURLToPath(new URL('../..', import.meta.url)),
     url: `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}/codespaces/`,
     reuseExistingServer: !process.env.CI,
