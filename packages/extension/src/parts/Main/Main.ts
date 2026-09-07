@@ -27,6 +27,7 @@ let activated = false
 let operation: AbortController | undefined
 let session: string | undefined
 let connectedName: string | undefined
+let lastAttemptedName: string | undefined
 const progress = async (message: string): Promise<void> => {
   output ||= createOutputChannel('codespaces')
   await output.replace(message)
@@ -84,6 +85,7 @@ const openWorkspace = async (
   })
 }
 const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
+  lastAttemptedName = codespace.name
   await release()
   const controller = new AbortController()
   operation = controller
@@ -118,7 +120,14 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
       operation = undefined
       await Connection.dispose()
     }
-    if (!controller.signal.aborted) throw error
+    if (!controller.signal.aborted) {
+      const message =
+        error instanceof Error ? error.message : 'Codespace setup failed'
+      await progress(
+        `${message}\nRun Codespaces: Open in Browser to inspect the container and view its creation logs.\nGitHub can provide a recovery container when devcontainer configuration fails.\n`,
+      )
+      throw error
+    }
   }
 }
 export const setup = async (): Promise<void> => {
@@ -220,6 +229,17 @@ export const activate = async (): Promise<void> => {
     'codespaces.setup': setup,
     'codespaces.connect': connect,
     'codespaces.start': start,
+    'codespaces.openInBrowser': async () => {
+      const name =
+        lastAttemptedName ||
+        (await pickCodespace('Select a Codespace to open in GitHub'))?.name
+      if (name)
+        await executeCommand(
+          'Open.openUrl',
+          `https://github.com/codespaces/${encodeURIComponent(name)}`,
+          true,
+        )
+    },
     'codespaces.stop': stop,
     'codespaces.authorize': async () => {
       await executeCommand(
@@ -260,7 +280,8 @@ export const activate = async (): Promise<void> => {
             void report(async () => {
               if (
                 id === 'codespaces.disconnect' ||
-                id === 'codespaces.authorize'
+                id === 'codespaces.authorize' ||
+                id === 'codespaces.openInBrowser'
               ) {
                 await callback()
                 return
