@@ -9,7 +9,7 @@ Create, start, stop, and connect to GitHub Codespaces from a static GitHub Pages
 1. Sign in with GitHub through the LVCE account button. If you signed in before Codespaces support was added, run **Codespaces: Authorize GitHub Access** and approve the additional GitHub permission.
 2. Run **Codespaces: Connect to Codespace** (F1) and select a Codespace. A stopped Codespace starts automatically. Alternatively, **Codespaces: Set Up a Codespace** loads a searchable list of repositories from your GitHub account (including subsequent pages), with a manual `owner/repository` option and creates one using GitHub defaults after confirmation.
 3. Wait while the extension installs its runtime and connects. The Codespaces Output panel shows GitHub startup states, remote setup stages, recent stage history, and elapsed time while waiting.
-4. Use **Codespaces: Stop Codespace** when finished to stop GitHub compute. **Disconnect** closes the editor connection or cancels setup; it does not stop the Codespace or remove its storage.
+4. Use **Codespaces: Stop Codespace** when finished to stop GitHub compute, or **Codespaces: Stop All Codespaces** to stop all your active Codespaces across repositories. Stop All skips stopped or stopping Codespaces and reports individual failures while continuing with the others. **Disconnect** closes the editor connection or cancels setup; it does not stop the Codespace or remove its storage.
 
 GitHub's billing, quota, repository permissions, and organization policies apply. Creating a Codespace starts compute and can incur charges. Stopped Codespaces can still incur storage charges.
 

@@ -56,6 +56,9 @@ test('Pages export loads and exposes Codespaces commands', async ({ page }) => {
     page.getByText('Codespaces: Open in Browser', { exact: true }),
   ).toBeVisible()
   await expect(
+    page.getByText('Codespaces: Stop All Codespaces', { exact: true }),
+  ).toBeVisible()
+  await expect(
     page.getByText('Codespaces: View Creation Log', { exact: true }),
   ).toBeVisible()
   expect(errors).toEqual([])

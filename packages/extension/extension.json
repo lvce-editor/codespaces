@@ -22,6 +22,7 @@
     "onFileSystem:codespaces",
     "onCommand:codespaces.start",
     "onCommand:codespaces.stop",
+    "onCommand:codespaces.stopAll",
     "onCommand:codespaces.authorize",
     "onCommand:codespaces.connectGateway",
     "onCommand:codespaces.openInBrowser",
@@ -51,6 +52,10 @@
     {
       "id": "codespaces.stop",
       "label": "Codespaces: Stop Codespace"
+    },
+    {
+      "id": "codespaces.stopAll",
+      "label": "Codespaces: Stop All Codespaces"
     },
     {
       "id": "codespaces.authorize",
