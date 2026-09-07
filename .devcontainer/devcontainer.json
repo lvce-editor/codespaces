@@ -1,0 +1,17 @@
+{
+  "name": "codespaces",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+  "postCreateCommand": "npm ci && npm run build:static",
+  "postStartCommand": "nohup node packages/build/src/serve-static.ts > /tmp/codespaces-preview.log 2>&1 &",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    }
+  },
+  "forwardPorts": [4173],
+  "remoteUser": "node"
+}

@@ -56,6 +56,12 @@ requirements](https://cli.github.com/manual/gh_codespace_ssh).
 
 ## Development
 
+Open this repository in a Codespace or use **Dev Containers: Reopen in Container**.
+The devcontainer installs dependencies, builds the static export, and starts the
+preview server on forwarded port 4173. Open `/codespaces/` on that port to view
+the editor. Run `npm run build:static` again after making changes. Preview server
+logs are available at `/tmp/codespaces-preview.log`.
+
 ```sh
 npm ci
 npm run build:static
