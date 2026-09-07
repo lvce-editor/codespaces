@@ -190,6 +190,7 @@ const run = async (fn: () => Promise<unknown>): Promise<void> => {
   try {
     await fn()
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
     report(error instanceof Error ? error.message : 'Operation failed')
   }
 }

@@ -1,4 +1,22 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+const seedSignIn = async (page: Page): Promise<void> => {
+  await page.addInitScript(() => {
+    ;(window as any).proofSignIn = new Promise<void>((resolve) => {
+      const request = indexedDB.open('auth-worker', 1)
+      request.onupgradeneeded = () => request.result.createObjectStore('auth')
+      request.onsuccess = () => {
+        const db = request.result
+        const transaction = db.transaction('auth', 'readwrite')
+        transaction.objectStore('auth').put('fixture-lvce-token', 'accessToken')
+        transaction.oncomplete = () => {
+          db.close()
+          resolve()
+        }
+      }
+    })
+  })
+}
 
 test('experimental static bundle loads without Node globals and explains missing sign-in', async ({
   page,
@@ -24,21 +42,7 @@ test('experimental static bundle loads without Node globals and explains missing
 test('lifecycle runs directly against GitHub and cancelling never stops compute', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    ;(window as any).proofSignIn = new Promise<void>((resolve) => {
-      const request = indexedDB.open('auth-worker', 1)
-      request.onupgradeneeded = () => request.result.createObjectStore('auth')
-      request.onsuccess = () => {
-        const db = request.result
-        const transaction = db.transaction('auth', 'readwrite')
-        transaction.objectStore('auth').put('fixture-lvce-token', 'accessToken')
-        transaction.oncomplete = () => {
-          db.close()
-          resolve()
-        }
-      }
-    })
-  })
+  await seedSignIn(page)
   const operations: string[] = []
   await page.route('https://lvce-editor.dev/codespaces/**', async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -102,4 +106,87 @@ test('lifecycle runs directly against GitHub and cancelling never stops compute'
   await expect
     .poll(() => operations.includes('POST /user/codespaces/fixture-space/stop'))
     .toBe(true)
+})
+
+test('expired credentials explain recovery without calling GitHub', async ({
+  page,
+}) => {
+  await seedSignIn(page)
+  const githubRequests: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).hostname === 'api.github.com')
+      githubRequests.push(request.url())
+  })
+  await page.route('https://lvce-editor.dev/codespaces/**', (route) =>
+    route.fulfill({ status: 401, json: { error: 'Unauthorized' } }),
+  )
+  await page.goto('/codespaces/experimental/')
+  await page.evaluate(() => (window as any).proofSignIn)
+  await page
+    .getByRole('button', { name: 'Load Codespaces', exact: true })
+    .click()
+  await expect(page.getByRole('status')).toHaveText(
+    'LVCE sign-in expired. Open the editor to refresh it, then reconnect.',
+  )
+  expect(githubRequests).toEqual([])
+})
+
+test('disconnect cancels a discovery in progress and allows another attempt', async ({
+  page,
+}) => {
+  await seedSignIn(page)
+  let discoveries = 0
+  const releases: (() => void)[] = []
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.route('https://lvce-editor.dev/codespaces/**', async (route) => {
+    if (route.request().url().endsWith('/github-token')) {
+      await route.fulfill({ json: { accessToken: 'fixture-github-token' } })
+      return
+    }
+    discoveries++
+    await new Promise<void>((resolve) => releases.push(resolve))
+    await route
+      .fulfill({ status: 502, json: { error: 'disconnected fixture' } })
+      .catch(() => {})
+  })
+  await page.route('https://api.github.com/**', (route) =>
+    route.fulfill({
+      json: {
+        codespaces: [
+          {
+            name: 'fixture-space',
+            state: 'Available',
+            repository: { full_name: 'lvce-editor/codespaces' },
+          },
+        ],
+      },
+    }),
+  )
+  try {
+    await page.goto('/codespaces/experimental/')
+    await page.evaluate(() => (window as any).proofSignIn)
+    await page
+      .getByRole('button', { name: 'Load Codespaces', exact: true })
+      .click()
+    await expect(page.getByRole('status')).toHaveText('1 Codespaces available.')
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      await page
+        .getByRole('button', { name: 'Connect / reconnect', exact: true })
+        .click()
+      await expect.poll(() => discoveries).toBe(attempt)
+      await page
+        .getByRole('button', { name: 'Disconnect / cancel', exact: true })
+        .click()
+      await expect(
+        page.getByRole('button', { name: 'Connect / reconnect', exact: true }),
+      ).toBeEnabled()
+      await expect(page.getByRole('status')).toContainText(
+        'GitHub compute continues',
+      )
+    }
+    expect(errors).toEqual([])
+  } finally {
+    for (const release of releases) release()
+  }
 })
