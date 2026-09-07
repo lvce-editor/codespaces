@@ -16,8 +16,8 @@
   },
   "devDependencies": {
     "@lvce-editor/api": "9.25.0",
-    "@lvce-editor/shared-process": "0.113.19",
-    "@lvce-editor/static-server": "0.113.19",
+    "@lvce-editor/shared-process": "0.113.21",
+    "@lvce-editor/static-server": "0.113.21",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.28.2",

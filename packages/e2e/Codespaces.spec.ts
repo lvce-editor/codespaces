@@ -58,6 +58,9 @@ test('Pages export loads and exposes Codespaces commands', async ({ page }) => {
   await expect(
     page.getByText('Codespaces: Stop All Codespaces', { exact: true }),
   ).toBeVisible()
+  await expect(
+    page.getByText('Codespaces: View Creation Log', { exact: true }),
+  ).toBeVisible()
   expect(errors).toEqual([])
 })
 test('setup instructions and executable download are deployed', async ({
@@ -95,4 +98,107 @@ test('signed-out setup asks for the existing LVCE login', async ({ page }) => {
       { exact: true },
     ),
   ).toBeVisible()
+})
+
+test('failed setup automatically opens the creation log in the editor', async ({
+  page,
+  context,
+}) => {
+  const operations: string[] = []
+  await context.route('https://lvce-editor.dev/account/me', (route) =>
+    route.fulfill({ json: { displayName: 'Codespaces Test' } }),
+  )
+  await context.route('https://api.github.com/user/codespaces*', (route) =>
+    route.fulfill({
+      json: {
+        codespaces: [
+          {
+            name: 'failed-container',
+            state: 'Available',
+            repository: { full_name: 'test/project' },
+          },
+        ],
+        total_count: 1,
+      },
+    }),
+  )
+  await context.route(
+    'https://lvce-editor.dev/codespaces/**',
+    async (route) => {
+      const pathname = new URL(route.request().url()).pathname
+      operations.push(`${route.request().method()} ${pathname}`)
+      if (pathname.endsWith('/auth/github-token'))
+        await route.fulfill({ json: { accessToken: 'github-test-token' } })
+      else if (pathname.endsWith('/failed-container/connect'))
+        await route.fulfill({
+          json: {
+            id: 'session',
+            websocketUrl:
+              'wss://lvce-editor.dev/codespaces/connections/session/',
+          },
+        })
+      else if (pathname.endsWith('/failed-container/creation-log'))
+        await route.fulfill({
+          json: { content: 'Failed to create container: image not found.\n' },
+        })
+      else if (route.request().method() === 'DELETE')
+        await route.fulfill({ status: 204 })
+      else
+        await route.fulfill({
+          json: {
+            state: 'failed',
+            error: 'Could not install the LVCE runtime.',
+          },
+        })
+    },
+  )
+  await page.goto('/codespaces/')
+  await page.waitForSelector('.Workbench')
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('auth-worker', 1)
+        request.onupgradeneeded = () => request.result.createObjectStore('auth')
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const database = request.result
+          const transaction = database.transaction('auth', 'readwrite')
+          transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+          transaction
+            .objectStore('auth')
+            .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+          transaction.oncomplete = () => {
+            database.close()
+            resolve()
+          }
+        }
+      }),
+  )
+  await page.keyboard.press('F1')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Connect to Codespace')
+  await page
+    .getByRole('option', {
+      name: 'Codespaces: Connect to Codespace',
+      exact: true,
+    })
+    .click()
+  await page.getByRole('option', { name: /failed-container/ }).click()
+  await expect(
+    page.getByText('creation.log', { exact: true }).first(),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Failed to create container: image not found.', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  expect(operations).toContain('GET /codespaces/failed-container/creation-log')
+  expect(operations).toContain('DELETE /codespaces/connections/session')
+  expect(operations.some((operation) => operation.endsWith('/stop'))).toBe(
+    false,
+  )
 })

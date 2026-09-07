@@ -45,6 +45,8 @@ const fixture = async (
             export const notifications = [];
             export const executed = [];
             export const activate = async () => {};
+            export const openUri = async () => {};
+            export const writeFile = async () => {};
             export const getAccessToken = async () => 'test-token';
             export const registerCommand = command => commands.set(command.id, command.execute);
             export const registerFileSystemProvider = () => {};

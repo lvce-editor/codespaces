@@ -26,6 +26,7 @@ import { fileSystem } from '../FileSystem/FileSystem.ts'
 import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
 import { createStartupProgress } from '../StartupProgress/StartupProgress.ts'
 import { connectToGateway } from '../Connect/Connect.ts'
+import { openCreationLog } from '../CreationLog/CreationLog.ts'
 
 let output: ReturnType<typeof createOutputChannel> | undefined
 let busy = false
@@ -150,9 +151,19 @@ const connectSelected = async (
       await Api.request(`/connections/${created}`, 'DELETE').catch(() => {})
     if (operation === controller) {
       session = undefined
-      operation = undefined
       await Connection.dispose()
     }
+    if (!controller.signal.aborted) {
+      try {
+        await update('Opening the Codespace creation log…', true)
+        await openCreationLog(codespace.name, controller.signal)
+        await update('Opened creation.log.', true)
+      } catch {
+        if (!controller.signal.aborted)
+          await update('Could not open the creation log.', true).catch(() => {})
+      }
+    }
+    if (operation === controller) operation = undefined
     if (!controller.signal.aborted) {
       await update(
         'Run Codespaces: Open in Browser to inspect the container and view its creation logs. GitHub can provide a recovery container when devcontainer configuration fails.',
@@ -253,6 +264,18 @@ export const connect = (): Promise<void> =>
     )
     if (codespace) await connectSelected(codespace, github, signal)
   })
+const viewCreationLog = (): Promise<void> =>
+  runGithub(async (github, signal) => {
+    const name =
+      lastAttemptedName ||
+      (
+        await pickCodespace(
+          github,
+          'Select a Codespace to view its creation log',
+        )
+      )?.name
+    if (name) await openCreationLog(name, signal)
+  })
 const start = (): Promise<void> =>
   runGithub(async (github) => {
     const codespace = await pickCodespace(github, 'Select a Codespace to start')
@@ -342,6 +365,7 @@ export const activate = async (): Promise<void> => {
     'codespaces.setup': setup,
     'codespaces.connect': connect,
     'codespaces.start': start,
+    'codespaces.viewCreationLog': viewCreationLog,
     'codespaces.openInBrowser': async () => {
       const url = lastAttemptedName
         ? `https://github.com/codespaces/${encodeURIComponent(lastAttemptedName)}`
