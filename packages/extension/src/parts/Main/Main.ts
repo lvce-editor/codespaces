@@ -19,6 +19,7 @@ import * as Api from '../CodespacesApi/CodespacesApi.ts'
 import * as Connection from '../Connection/Connection.ts'
 import { fileSystem } from '../FileSystem/FileSystem.ts'
 import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
+import { createStartupProgress } from '../StartupProgress/StartupProgress.ts'
 import { connectToGateway } from '../Connect/Connect.ts'
 
 let output: ReturnType<typeof createOutputChannel> | undefined
@@ -88,14 +89,22 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
   const controller = new AbortController()
   operation = controller
   let created: string | undefined
+  output ||= createOutputChannel('codespaces')
+  const update = createStartupProgress(codespace.name, async (message) => {
+    await output!.replace(message)
+    // Older editor exports do not subscribe to output channel changes.
+    // Refresh the visible output without reopening a panel the user closed.
+    await executeCommand('Output.refresh').catch(() => {})
+  })
+  const onProgress: Api.OnProgress = async (message) => {
+    if (controller.signal.aborted)
+      throw new ConnectionCancelledError('Connection cancelled')
+    await update(message)
+  }
   try {
-    await progress(
-      `Starting ${codespace.name}…\nCodespaces compute is billed by GitHub while running.\nRun Codespaces: Disconnect to cancel.\n`,
-    )
-    await Api.ensureAvailable(codespace, controller.signal)
-    await progress(
-      `Setting up and connecting to ${codespace.name} over a private tunnel…\nThe first connection downloads the LVCE runtime.\nRun Codespaces: Disconnect to cancel.\n`,
-    )
+    await onProgress('Checking Codespace status…')
+    await openOutputView({ channel: 'codespaces' })
+    await Api.ensureAvailable(codespace, controller.signal, onProgress)
     const result = await Api.prepare(
       codespace.name,
       controller.signal,
@@ -103,14 +112,22 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
         created = id
         if (!controller.signal.aborted) session = id
       },
+      onProgress,
     )
     if (controller.signal.aborted)
       throw new ConnectionCancelledError('Connection cancelled')
+    await onProgress('Opening the remote workspace…')
     await openWorkspace(codespace.name, result, controller.signal)
-    await progress(
-      `Connected to ${codespace.name}.\nUse Codespaces: Stop Codespace to stop GitHub compute when finished. Disconnect only closes the editor connection.\n`,
-    )
+    if (controller.signal.aborted)
+      throw new ConnectionCancelledError('Connection cancelled')
+    await update(`Connected to ${codespace.name}.`, true)
   } catch (error) {
+    await update(
+      controller.signal.aborted
+        ? 'Connection cancelled.'
+        : `Connection failed: ${error instanceof Error ? error.message : 'Codespace setup failed'}`,
+      true,
+    ).catch(() => {})
     if (created)
       await Api.request(`/connections/${created}`, 'DELETE').catch(() => {})
     if (operation === controller) {
