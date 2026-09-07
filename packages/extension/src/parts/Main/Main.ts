@@ -90,9 +90,12 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
   operation = controller
   let created: string | undefined
   output ||= createOutputChannel('codespaces')
-  const update = createStartupProgress(codespace.name, (message) =>
-    output!.replace(message),
-  )
+  const update = createStartupProgress(codespace.name, async (message) => {
+    await output!.replace(message)
+    // Older editor exports do not subscribe to output channel changes.
+    // Refresh the visible output without reopening a panel the user closed.
+    await executeCommand('Output.refresh').catch(() => {})
+  })
   const onProgress: Api.OnProgress = async (message) => {
     if (controller.signal.aborted)
       throw new ConnectionCancelledError('Connection cancelled')
