@@ -52,7 +52,9 @@ test('failed connection keeps recovery guidance and opens the attempted Codespac
     async (input: string, init: RequestInit) => {
       const url = String(input)
       requests.push(`${init.method} ${url}`)
-      if (new URL(url).pathname === '/codespaces')
+      if (url.endsWith('/auth/github-token'))
+        return Response.json({ accessToken: 'github-test-token' })
+      if (new URL(url).pathname === '/user/codespaces')
         return Response.json({
           codespaces: [
             {
