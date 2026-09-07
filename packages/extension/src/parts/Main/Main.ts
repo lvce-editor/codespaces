@@ -91,6 +91,7 @@ const openWorkspace = async (
   await executeCommand('Workspace.setUri', uri.href, '/', {
     command: Connection.commandId,
     workspacePath: value.workspacePath,
+    terminalSpawnOptions: { command: 'bash', args: ['-i'] },
   })
 }
 const connectSelected = async (

@@ -449,6 +449,20 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect
     .poll(() => readFile(path.join(workspace, 'codespaces-proof.txt'), 'utf8'))
     .toContain('Browser-only connection saved this.')
+  await page.locator('.PanelTab[name="Terminals"]').click()
+  const terminalInput = page.locator('.xterm-helper-textarea')
+  await expect(terminalInput).toBeVisible()
+  await terminalInput.pressSequentially(
+    "printf 'Remote terminal worked' > terminal-proof.txt",
+  )
+  await terminalInput.press('Enter')
+  await expect
+    .poll(() =>
+      readFile(path.join(workspace, 'terminal-proof.txt'), 'utf8').catch(
+        () => '',
+      ),
+    )
+    .toBe('Remote terminal worked')
   await page
     .getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true })
     .getByRole('button', { name: 'Close', exact: true })
