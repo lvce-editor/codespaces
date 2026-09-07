@@ -1,5 +1,36 @@
 import { test, expect } from '@playwright/test'
 
+test('sign-in callback returns to Codespaces and preserves the callback for account restoration', async ({
+  page,
+}) => {
+  await page.goto(
+    '/codespaces/auth/callback.html?code=test-code&state=test-state',
+  )
+  await expect(page).toHaveURL(/\/codespaces\/$/)
+  const callback = await page.evaluate(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        const request = indexedDB.open('auth-worker')
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const database = request.result
+          const read = database
+            .transaction('auth')
+            .objectStore('auth')
+            .get('oidcCallbackUrl')
+          read.onerror = () => reject(read.error)
+          read.onsuccess = () => {
+            database.close()
+            resolve(read.result)
+          }
+        }
+      }),
+  )
+  expect(new URL(callback).pathname).toBe('/codespaces/auth/callback.html')
+  expect(new URL(callback).searchParams.get('code')).toBe('test-code')
+  expect(new URL(callback).searchParams.get('state')).toBe('test-state')
+})
+
 test('Pages export loads and exposes Codespaces commands', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))

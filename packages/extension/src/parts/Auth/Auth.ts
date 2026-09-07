@@ -3,10 +3,21 @@ import {
   InvalidAccountIdError,
   SignInRequiredError,
 } from '../../../../shared/src/Errors.ts'
-import { getAccessToken } from '@lvce-editor/api'
+import { executeCommand, getAccessToken } from '@lvce-editor/api'
 import { backendUrl } from '../Urls/Urls.ts'
 
+let initialization: Promise<unknown> | undefined
+
 export const getToken = async (): Promise<string> => {
+  // Static exports initialize authentication lazily. Restore callbacks and set
+  // the auth worker's backend before asking it to refresh an expired token.
+  initialization ||= executeCommand('Layout.refreshAuthState').catch(
+    (error) => {
+      initialization = undefined
+      throw error
+    },
+  )
+  await initialization
   const token = await getAccessToken({ refresh: 'if-needed' })
   if (!token)
     throw new SignInRequiredError(
