@@ -1,0 +1,17 @@
+{
+  "name": "experimental",
+  "private": true,
+  "version": "0.0.0-dev",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@microsoft/dev-tunnels-connections": "1.3.56",
+    "@microsoft/dev-tunnels-ssh": "3.12.42",
+    "@microsoft/dev-tunnels-ssh-tcp": "3.12.42",
+    "buffer": "6.0.3"
+  }
+}

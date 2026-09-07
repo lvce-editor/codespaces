@@ -4,6 +4,15 @@
 
 Create, start, stop, and connect to GitHub Codespaces from a static GitHub Pages export of LVCE Editor. The extension handles the workflow and installs the remote LVCE runtime automatically. No local CLI, Codespace terminal command, or public forwarded port is needed.
 
+## Experimental browser connection
+
+[Open the opt-in proof](https://lvce-editor.github.io/codespaces/experimental/) for
+a directory listing, text editor and terminal panel using Microsoft's browser
+relay and the existing VS Code Server. It requires no container sshd or LVCE
+runtime installation. The normal editor continues to use its existing connection.
+This proof is awaiting real Codespaces acceptance; see the [protocol evidence and
+acceptance requirements](packages/experimental/README.md).
+
 ## Try it
 
 1. Sign in with GitHub through the LVCE account button. If you signed in before Codespaces support was added, run **Codespaces: Authorize GitHub Access** and approve the additional GitHub permission.
