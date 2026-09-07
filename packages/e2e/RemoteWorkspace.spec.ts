@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, readFile, rm, glob } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
-import { createGateway } from '../server/src/Gateway.ts'
+import { createGateway } from '../server/src/parts/Gateway/Gateway.ts'
 
 const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`
 let backend: ChildProcess

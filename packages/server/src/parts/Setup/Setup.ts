@@ -12,7 +12,7 @@ import {
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
-import { createGateway } from './Gateway.ts'
+import { createGateway } from '../Gateway/Gateway.ts'
 const version = 'v0.10.7'
 const nodeVersion = 'v24.15.0'
 const serverUrl = `https://github.com/lvce-editor/remote-ssh/releases/download/${version}/lvce-remote-ssh-server-${version}.tar.gz`
