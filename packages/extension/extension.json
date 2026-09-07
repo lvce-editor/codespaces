@@ -24,7 +24,8 @@
     "onCommand:codespaces.stop",
     "onCommand:codespaces.authorize",
     "onCommand:codespaces.connectGateway",
-    "onCommand:codespaces.openInBrowser"
+    "onCommand:codespaces.openInBrowser",
+    "onCommand:codespaces.viewCreationLog"
   ],
   "commands": [
     {
@@ -62,6 +63,10 @@
     {
       "id": "codespaces.openInBrowser",
       "label": "Codespaces: Open in Browser"
+    },
+    {
+      "id": "codespaces.viewCreationLog",
+      "label": "Codespaces: View Creation Log"
     }
   ],
   "fileSystemProviders": [
