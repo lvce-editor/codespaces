@@ -1,10 +1,15 @@
+import {
+  AccountLookupError,
+  InvalidAccountIdError,
+  SignInRequiredError,
+} from '../../../../shared/src/Errors.ts'
 import { getAccessToken } from '@lvce-editor/api'
 import { backendUrl } from '../Urls/Urls.ts'
 
 export const getToken = async (): Promise<string> => {
   const token = await getAccessToken({ refresh: 'if-needed' })
   if (!token)
-    throw new Error(
+    throw new SignInRequiredError(
       'Sign in to LVCE using the account button, then run this command again.',
     )
   return token
@@ -17,11 +22,13 @@ export const getAccountId = async (token: string): Promise<string> => {
     redirect: 'error',
   })
   if (!response.ok)
-    throw new Error(
+    throw new AccountLookupError(
       `LVCE account lookup failed (${response.status}). Sign in again.`,
     )
   const account = await response.json()
   if (typeof account.sub !== 'string' || !account.sub)
-    throw new Error('LVCE returned an invalid account identifier.')
+    throw new InvalidAccountIdError(
+      'LVCE returned an invalid account identifier.',
+    )
   return account.sub
 }

@@ -1,3 +1,10 @@
+import {
+  AuthenticationError,
+  GatewayStartupError,
+  HttpsRequiredError,
+  InvalidAccountIdError,
+  InvalidGatewayOptionsError,
+} from '../../../../shared/src/Errors.ts'
 import { randomBytes } from 'node:crypto'
 import {
   createServer,
@@ -33,10 +40,10 @@ export const verifyAccount = async (token: string): Promise<string> => {
     redirect: 'error',
     signal: AbortSignal.timeout(10_000),
   })
-  if (!response.ok) throw new Error('Authentication failed')
+  if (!response.ok) throw new AuthenticationError('Authentication failed')
   const account = await response.json()
   if (typeof account.sub !== 'string' || !account.sub)
-    throw new Error('Invalid identity')
+    throw new InvalidAccountIdError('Invalid identity')
   return account.sub
 }
 const bearer = (request: IncomingMessage): string => {
@@ -57,7 +64,9 @@ const json = (
 const secret = (): string => randomBytes(32).toString('hex')
 export const createGateway = async (options: GatewayOptions) => {
   if (!options.owner || !options.workspacePath.startsWith('/'))
-    throw new Error('Owner and absolute workspace path are required')
+    throw new InvalidGatewayOptionsError(
+      'Owner and absolute workspace path are required',
+    )
   const publicUrl = new URL(options.publicUrl)
   const origin = new URL(options.allowedOrigin).origin
   for (const url of [publicUrl, new URL(origin)]) {
@@ -65,7 +74,7 @@ export const createGateway = async (options: GatewayOptions) => {
       url.protocol !== 'https:' &&
       !(url.protocol === 'http:' && url.hostname === '127.0.0.1')
     )
-      throw new Error('HTTPS is required')
+      throw new HttpsRequiredError('HTTPS is required')
   }
   const sessions = new Map<string, number>()
   const tickets = new Map<string, { expires: number; session: string }>()
@@ -264,7 +273,7 @@ export const createGateway = async (options: GatewayOptions) => {
   await promise
   const address = server.address()
   if (!address || typeof address === 'string')
-    throw new Error('Gateway did not start')
+    throw new GatewayStartupError('Gateway did not start')
   if (publicUrl.hostname === '127.0.0.1' && publicUrl.port === '0')
     publicUrl.port = String(address.port)
   let closing: Promise<void> | undefined

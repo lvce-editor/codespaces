@@ -1,3 +1,7 @@
+import {
+  BackendStartupTimeoutError,
+  InvalidAccountIdError,
+} from '../shared/src/Errors.ts'
 import { test, expect } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
@@ -42,7 +46,7 @@ test.beforeAll(async () => {
   const { promise, resolve, reject } = Promise.withResolvers<number>()
   const lines = createInterface({ input: backend.stdout! })
   const timer = setTimeout(
-    () => reject(new Error('Backend startup timeout')),
+    () => reject(new BackendStartupTimeoutError('Backend startup timeout')),
     20_000,
   )
   backend.once('error', reject)
@@ -65,7 +69,8 @@ test.beforeAll(async () => {
     backendToken: 'test-backend-secret',
     port: 0,
     verifyAccount: async (token) => {
-      if (token !== 'test-lvce-token') throw new Error('Invalid test identity')
+      if (token !== 'test-lvce-token')
+        throw new InvalidAccountIdError('Invalid test identity')
       return 'test-owner'
     },
   })
