@@ -182,6 +182,24 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   let cleanupFails = false
   let tokenRequests = 0
   let statePolls = 0
+  let refreshRequests = 0
+  await context.route('https://lvce-editor.dev/oidc/token', async (route) => {
+    const req = route.request()
+    const body = new URLSearchParams(req.postData() || '')
+    expect(req.method()).toBe('POST')
+    expect(body.get('grant_type')).toBe('refresh_token')
+    expect(body.get('refresh_token')).toBe('test-refresh-token')
+    expect(body.get('client_id')).toBe('lvce-editor-web')
+    refreshRequests++
+    await route.fulfill({
+      json: {
+        access_token: 'test-lvce-token',
+        refresh_token: 'test-refresh-token',
+        token_type: 'Bearer',
+        expires_in: 3600,
+      },
+    })
+  })
   await context.route('https://api.github.com/**', async (route) => {
     const req = route.request()
     const url = new URL(req.url())
@@ -356,10 +374,12 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     req.onsuccess = () => {
       const database = req.result
       const transaction = database.transaction('auth', 'readwrite')
-      transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+      transaction.objectStore('auth').put('expired-lvce-token', 'accessToken')
+      transaction.objectStore('auth').put('test-refresh-token', 'refreshToken')
+      transaction.objectStore('auth').put('lvce-editor-web', 'oidcClientId')
       transaction
         .objectStore('auth')
-        .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+        .put(String(Date.now() - 60_000), 'accessTokenExpiresAt')
       transaction.oncomplete = () => {
         database.close()
         resolve()
@@ -429,6 +449,24 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect
     .poll(() => readFile(path.join(workspace, 'codespaces-proof.txt'), 'utf8'))
     .toContain('Browser-only connection saved this.')
+  await page.locator('.PanelTab[name="Terminals"]').click()
+  const terminalInput = page.locator('.xterm-helper-textarea')
+  await expect(terminalInput).toBeVisible()
+  await terminalInput.pressSequentially(
+    "printf 'Remote terminal worked' > terminal-proof.txt",
+  )
+  await terminalInput.press('Enter')
+  await expect
+    .poll(() =>
+      readFile(path.join(workspace, 'terminal-proof.txt'), 'utf8').catch(
+        () => '',
+      ),
+    )
+    .toBe('Remote terminal worked')
+  await page
+    .getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
   const stopFromPicker = async (): Promise<void> => {
     await page.keyboard.press('F1')
     await page
@@ -458,6 +496,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   )
   expect(statePolls).toBeGreaterThanOrEqual(3)
   expect(tokenRequests).toBe(2)
+  expect(refreshRequests).toBe(1)
   expect(
     operations.indexOf('DELETE /codespaces/browser-test-codespace/connections'),
   ).toBeGreaterThan(
