@@ -35,7 +35,7 @@ test('failed connection keeps recovery guidance and opens the attempted Codespac
           export const openOutputView = async () => {};
           export const showNotification = async () => {};
           export const showQuickPick = async () => 'happy-cat';
-          export const executeCommand = async (...args) => { opened.push(args); openedSignal.resolve(); };
+          export const executeCommand = async (...args) => { if (args[0] === 'Open.openUrl') { opened.push(args); openedSignal.resolve(); } };
         `,
           }))
         },
@@ -80,6 +80,7 @@ test('failed connection keeps recovery guidance and opens the attempted Codespac
   await assert.rejects(main.connect(), /Could not connect over SSH/)
   assert.match(main.output.at(-1), /Could not connect over SSH/)
   assert.match(main.output.at(-1), /Codespaces: Open in Browser/)
+  assert.match(main.output.at(-1), /Checking Codespace status/)
   assert.ok(
     requests.includes(
       'DELETE https://lvce-editor.dev/codespaces/connections/session',

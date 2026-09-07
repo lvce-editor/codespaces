@@ -138,11 +138,10 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
       await Connection.dispose()
     }
     if (!controller.signal.aborted) {
-      const message =
-        error instanceof Error ? error.message : 'Codespace setup failed'
-      await progress(
-        `${message}\nRun Codespaces: Open in Browser to inspect the container and view its creation logs.\nGitHub can provide a recovery container when devcontainer configuration fails.\n`,
-      )
+      await update(
+        'Run Codespaces: Open in Browser to inspect the container and view its creation logs. GitHub can provide a recovery container when devcontainer configuration fails.',
+        true,
+      ).catch(() => {})
       throw error
     }
   }
