@@ -29,6 +29,29 @@ Each connection has an isolated SSH key and configuration directory. HTTP operat
 - GitHub default machine, region, branch, and devcontainer settings are used for creation. Custom selection is not yet exposed.
 - The older manually configured gateway remains available as **Codespaces: Connect to Manual Gateway**. The primary flow uses private SSH forwarding.
 
+## Recover a container without SSH
+
+GitHub can report a Codespace as available even when its custom container has
+no SSH server. Run **Codespaces: Open in Browser** to open GitHub's editor for
+the last attempted Codespace. For a Debian/Ubuntu devcontainer, merge this
+feature into `.devcontainer/devcontainer.json` and run **Codespaces: Rebuild
+Container** in GitHub's editor:
+
+```json
+{
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": { "version": "latest" }
+  }
+}
+```
+
+Preserve existing devcontainer settings when adding the feature. A rebuild
+recreates the container, so preserve any work outside `/workspaces` first.
+Installing `openssh-server` manually can repair the current container if you
+have administrator access, but does not survive a rebuild. LVCE cannot install
+the remote runtime until SSH works. See [GitHub CLI's SSH
+requirements](https://cli.github.com/manual/gh_codespace_ssh).
+
 ## Development
 
 ```sh
