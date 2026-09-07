@@ -502,10 +502,14 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect(
     page.getByText(/Checking and installing the LVCE remote server/),
   ).toBeVisible()
-  // Keep the earlier stage visible while the current stage advances.
+  // Output virtualizes its rows and follows the latest progress. Scroll back to
+  // verify earlier stages remain available after the current stage advances.
+  await page.getByRole('log').hover()
+  await page.mouse.wheel(0, -1000)
   await expect(
     page.getByText(/GitHub is provisioning the Codespace/),
   ).toBeVisible()
+  await page.mouse.wheel(0, 1000)
   setupStage = 'opening-tunnel'
   await expect(
     page.getByText(/Establishing the private connection/),
