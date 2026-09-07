@@ -61,6 +61,7 @@ const fixture = async (
             export const getAccessToken = async () => 'test-token';
             export const registerCommand = command => commands.set(command.id, command.execute);
             export const registerFileSystemProvider = () => {};
+          export const registerPortProvider = () => ({ dispose() {} });
             export const registerView = () => ({ dispose() {} });
             export const createOutputChannel = () => ({replace: async message => output.push(message)});
             export const openOutputView = async () => {};
