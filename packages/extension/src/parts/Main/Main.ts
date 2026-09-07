@@ -10,6 +10,7 @@ import {
   registerCommand,
   registerView,
   registerFileSystemProvider,
+  registerPortProvider,
   createOutputChannel,
   openOutputView,
   showQuickPick,
@@ -28,6 +29,7 @@ import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
 import { createStartupProgress } from '../StartupProgress/StartupProgress.ts'
 import { connectToGateway } from '../Connect/Connect.ts'
 import { openCreationLog } from '../CreationLog/CreationLog.ts'
+import { createPortProvider } from '../PortProvider/PortProvider.ts'
 import { readAppPreview } from '../AppPreview/AppPreview.ts'
 import {
   previewView,
@@ -39,6 +41,7 @@ let previewRegistration: ReturnType<typeof registerView> | undefined
 let output: ReturnType<typeof createOutputChannel> | undefined
 let busy = false
 let activated = false
+let portProvider: ReturnType<typeof registerPortProvider> | undefined
 let operation: AbortController | undefined
 let management: AbortController | undefined
 let session: string | undefined
@@ -397,12 +400,17 @@ export const activate = async (): Promise<void> => {
   if (activated) return
   await activateApi()
   registerFileSystemProvider(fileSystem)
+  portProvider = registerPortProvider(createPortProvider())
   previewRegistration = registerView(previewView)
   const commands = {
     'codespaces.setup': setup,
     'codespaces.connect': connect,
     'codespaces.start': start,
     'codespaces.viewCreationLog': viewCreationLog,
+    'codespaces.refreshPorts': async () => {
+      await executeCommand('Layout.showPanel', 'Ports')
+      await executeCommand('Ports.refresh')
+    },
     'codespaces.openInBrowser': async () => {
       const url = lastAttemptedName
         ? `https://github.com/codespaces/${encodeURIComponent(lastAttemptedName)}`
@@ -478,6 +486,8 @@ export const activate = async (): Promise<void> => {
   activated = true
 }
 export const deactivate = async (): Promise<void> => {
+  portProvider?.dispose()
+  portProvider = undefined
   activated = false
   await release()
   previewRegistration?.dispose()

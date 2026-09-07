@@ -119,3 +119,9 @@ Disconnecting clears the embedded app.
 
 This supports explicit port attributes with `openPreview`; process-pattern and
 port-range discovery are not implemented.
+
+## Workspace ports
+
+The Ports panel lists `forwardPorts` from `.devcontainer/devcontainer.json` or `.devcontainer.json` with their GitHub Codespaces URLs. Run **Codespaces: Refresh Ports** after editing the configuration. The panel refreshes when the workspace changes.
+
+This provider reports configured forwarding addresses. It does not detect listening processes, query live tunnel state, create tunnels, or change port visibility. A configured URL still requires the application and GitHub forwarding to be available.

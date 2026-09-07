@@ -20,6 +20,8 @@
     "onCommand:codespaces.getWebSocketUrl",
     "onCommand:codespaces.disconnect",
     "onFileSystem:codespaces",
+    "onPorts:codespaces",
+    "onCommand:codespaces.refreshPorts",
     "onCommand:codespaces.start",
     "onCommand:codespaces.stop",
     "onCommand:codespaces.stopAll",
@@ -30,6 +32,7 @@
     "onView:builtin.codespaces-preview"
   ],
   "commands": [
+    { "id": "codespaces.refreshPorts", "label": "Codespaces: Refresh Ports" },
     {
       "id": "codespaces.setup",
       "label": "Codespaces: Set Up a Codespace"

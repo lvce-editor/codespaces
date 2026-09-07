@@ -581,6 +581,26 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect.poll(() => previewRequests).toBeGreaterThan(requestsBeforeReload)
   await expect(app.getByRole('button', { name: 'Test app' })).toBeVisible()
 
+  await page.getByRole('tree', { name: 'Files Explorer', exact: true }).focus()
+  await page.keyboard.press('F1')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Refresh Ports')
+  await page
+    .getByRole('option', { name: 'Codespaces: Refresh Ports', exact: true })
+    .click()
+  const ports = page.locator('.Ports')
+  await expect(ports.getByText('3000', { exact: true })).toBeVisible()
+  await expect(ports.getByRole('link')).toHaveText(
+    'https://browser-test-codespace-3000.app.github.dev/',
+  )
+  await expect(
+    ports.getByText('devcontainer.json', { exact: true }),
+  ).toBeVisible()
+
   await page.locator('.PanelTab[name="Terminals"]').click()
   const terminalInput = page.locator('.xterm-helper-textarea')
   await expect(terminalInput).toBeVisible()
@@ -628,6 +648,11 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     .poll(() => operations)
     .toContain(`DELETE /codespaces/connections/${id}`)
   await expect(preview).toHaveCount(0)
+  await page.locator('.PanelTab[name="Ports"]').click()
+  await expect(
+    ports.getByText('No forwarded ports', { exact: true }),
+  ).toBeVisible()
+  await expect(ports.locator('a')).toHaveCount(0)
   expect(operations).toContain('POST /repos/test/project/codespaces')
   expect(operations).toContain(
     'POST /user/codespaces/browser-test-codespace/start',

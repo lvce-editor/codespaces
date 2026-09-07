@@ -9,7 +9,7 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@lvce-editor/api": "9.25.0",
+    "@lvce-editor/api": "9.31.0",
     "@lvce-editor/constants": "5.30.0",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",

@@ -7,6 +7,7 @@ import {
 
 test('preview clears the live instance on disconnect and releases closed views', async () => {
   let renders = 0
+  assert.ok(previewView.create)
   const instance = await previewView.create({
     uid: 1,
     viewId: previewView.id,
