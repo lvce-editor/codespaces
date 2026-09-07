@@ -599,7 +599,15 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     .getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true })
     .getByRole('button', { name: 'Close', exact: true })
     .click()
+  await expect(
+    page.getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true }),
+  ).toHaveCount(0)
   const stopFromPicker = async (): Promise<void> => {
+    // The terminal and app iframe have their own key handlers. Target the
+    // workbench before issuing its command-palette shortcut.
+    await page
+      .getByRole('tree', { name: 'Files Explorer', exact: true })
+      .focus()
     await page.keyboard.press('F1')
     await page
       .getByRole('combobox', {
