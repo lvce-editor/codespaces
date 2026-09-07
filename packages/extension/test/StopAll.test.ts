@@ -22,9 +22,9 @@ const fixture = async (
 ) => {
   const result = await build({
     stdin: {
-      contents: `export * from './packages/extension/src/parts/Main/Main.ts';
+      contents: `export * from '../src/parts/Main/Main.ts';
         export { commands, output, notifications, executed } from '@lvce-editor/api';`,
-      resolveDir: process.cwd(),
+      resolveDir: import.meta.dirname,
     },
     bundle: true,
     format: 'esm',

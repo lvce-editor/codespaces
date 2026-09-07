@@ -5,9 +5,9 @@ import { build } from 'esbuild'
 test('restores static authentication once, retries failed initialization, and requests token refresh', async () => {
   const result = await build({
     stdin: {
-      contents: `export * from './packages/extension/src/parts/Auth/Auth.ts';
+      contents: `export * from '../src/parts/Auth/Auth.ts';
         export { state } from '@lvce-editor/api';`,
-      resolveDir: process.cwd(),
+      resolveDir: import.meta.dirname,
     },
     bundle: true,
     format: 'esm',
