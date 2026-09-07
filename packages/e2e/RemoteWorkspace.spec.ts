@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import { createGateway } from '../server/src/Gateway.ts'
+import { createGateway } from '../server/src/parts/Gateway/Gateway.ts'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`

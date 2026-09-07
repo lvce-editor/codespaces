@@ -1,5 +1,5 @@
-import { getToken } from './Auth.ts'
-import { backendUrl } from './Urls.ts'
+import { getToken } from '../Auth/Auth.ts'
+import { backendUrl } from '../Urls/Urls.ts'
 
 export interface Codespace {
   name: string

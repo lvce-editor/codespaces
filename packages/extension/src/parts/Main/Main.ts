@@ -8,12 +8,12 @@ import {
   showQuickPick,
   showNotification,
 } from '@lvce-editor/api'
-import { getToken } from './Auth.ts'
-import * as Api from './CodespacesApi.ts'
-import * as Connection from './Connection.ts'
-import { fileSystem } from './FileSystem.ts'
-import { backendUrl, siteUrl, getEndpoint } from './Urls.ts'
-import { connectToGateway } from './Connect.ts'
+import { getToken } from '../Auth/Auth.ts'
+import * as Api from '../CodespacesApi/CodespacesApi.ts'
+import * as Connection from '../Connection/Connection.ts'
+import { fileSystem } from '../FileSystem/FileSystem.ts'
+import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
+import { connectToGateway } from '../Connect/Connect.ts'
 
 let output: ReturnType<typeof createOutputChannel> | undefined
 let busy = false

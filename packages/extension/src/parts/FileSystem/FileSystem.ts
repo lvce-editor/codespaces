@@ -1,5 +1,5 @@
 import type { FileSystemDirent, FileSystemProvider } from '@lvce-editor/api'
-import * as RemoteServerConnection from './Connection.ts'
+import * as RemoteServerConnection from '../Connection/Connection.ts'
 
 export type Invoke = (
   method: string,

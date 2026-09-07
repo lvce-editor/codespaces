@@ -1,5 +1,5 @@
 import { getAccessToken } from '@lvce-editor/api'
-import { backendUrl } from './Urls.ts'
+import { backendUrl } from '../Urls/Urls.ts'
 
 export const getToken = async (): Promise<string> => {
   const token = await getAccessToken({ refresh: 'if-needed' })
