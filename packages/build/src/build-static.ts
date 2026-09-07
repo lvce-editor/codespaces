@@ -1,5 +1,5 @@
 import './build.ts'
-import { cp, writeFile } from 'node:fs/promises'
+import { cp, readFile, writeFile } from 'node:fs/promises'
 const { exportStatic } = await import(
   import.meta.resolve('@lvce-editor/shared-process')
 )
@@ -16,4 +16,13 @@ await cp(
 )
 await cp('.tmp/setup/setup.mjs', 'dist/setup.mjs')
 await cp('packages/extension/static/setup.html', 'dist/setup.html')
+const callbackPath = 'dist/auth/callback.html'
+const callback = await readFile(callbackPath, 'utf8')
+await writeFile(
+  callbackPath,
+  callback.replace(
+    "window.location.replace('/')",
+    "window.location.replace('/codespaces/')",
+  ),
+)
 await writeFile('dist/.nojekyll', '')
