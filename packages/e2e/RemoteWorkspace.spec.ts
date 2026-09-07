@@ -150,6 +150,9 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
 }) => {
   const id = 'a'.repeat(64)
   const operations: string[] = []
+  let startupState = 'Provisioning'
+  let setupStage: string | undefined
+  let setupReady = false
   const repositoryPages: number[] = []
   const repositories = [
     ...Array.from({ length: 200 }, (_, i) => ({
@@ -215,7 +218,8 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
       pathname === '/user/codespaces/browser-test-codespace' &&
       req.method() === 'GET'
     ) {
-      if (++statePolls >= 2) codespace.state = 'Available'
+      statePolls++
+      codespace.state = startupState
       await route.fulfill({ json: codespace })
       return
     }
@@ -282,7 +286,12 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
       req.method() === 'GET'
     ) {
       await route.fulfill({
-        json: { id, state: 'ready', workspacePath: workspace },
+        json: {
+          id,
+          state: setupReady ? 'ready' : 'starting',
+          stage: setupStage,
+          workspacePath: workspace,
+        },
       })
       return
     }
@@ -381,6 +390,33 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   expect(repositoryPages).toEqual([1, 2, 3])
   await page.getByRole('option', { name: /Create and Connect/ }).click()
   await expect(
+    page.getByText(/GitHub is provisioning the Codespace/),
+  ).toBeVisible()
+  await expect(page.getByText(/Elapsed: 0m [1-9]\d*s/)).toBeVisible()
+  startupState = 'Starting'
+  await expect(page.getByText(/GitHub is starting the Codespace/)).toBeVisible()
+  startupState = 'Available'
+  // Older backends omit stage; waiting must still be visible.
+  await expect(
+    page.getByText(/Waiting for remote setup and the private connection/),
+  ).toBeVisible()
+  setupStage = 'installing-server'
+  await expect(
+    page.getByText(/Checking and installing the LVCE remote server/),
+  ).toBeVisible()
+  // Keep the earlier stage visible while the current stage advances.
+  await expect(
+    page.getByText(/GitHub is provisioning the Codespace/),
+  ).toBeVisible()
+  setupStage = 'opening-tunnel'
+  await expect(
+    page.getByText(/Establishing the private connection/),
+  ).toBeVisible()
+  setupReady = true
+  await expect(
+    page.getByText(/Connected to browser-test-codespace\./),
+  ).toBeVisible()
+  await expect(
     page.getByText('codespaces-proof.txt', { exact: true }),
   ).toBeVisible({ timeout: 45_000 })
   await page.getByText('codespaces-proof.txt', { exact: true }).dblclick()
@@ -420,7 +456,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   expect(operations).toContain(
     'DELETE /codespaces/browser-test-codespace/connections',
   )
-  expect(statePolls).toBe(2)
+  expect(statePolls).toBeGreaterThanOrEqual(3)
   expect(tokenRequests).toBe(2)
   expect(
     operations.indexOf('DELETE /codespaces/browser-test-codespace/connections'),

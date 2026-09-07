@@ -39,11 +39,27 @@ export const request = async <T>(
   }
   return response.status === 204 ? (undefined as T) : response.json()
 }
+export type OnProgress = (message: string) => Promise<void>
+
+const setupMessages: Record<string, string> = {
+  'connecting-ssh': 'Connecting to the Codespace…',
+  'downloading-node': 'Downloading Node.js for setup…',
+  'verifying-node': 'Verifying and extracting Node.js for setup…',
+  'downloading-setup': 'Downloading the LVCE setup program…',
+  'installing-runtime': 'Checking and installing the LVCE runtime…',
+  'installing-node': 'Checking and installing the remote Node.js runtime…',
+  'installing-server': 'Checking and installing the LVCE remote server…',
+  'starting-server': 'Starting the LVCE remote server…',
+  'opening-tunnel': 'Establishing the private connection…',
+}
+
 export const prepare = async (
   name: string,
   signal: AbortSignal,
   onSession: (id: string) => void,
+  onProgress: OnProgress,
 ) => {
+  await onProgress('Requesting a private connection…')
   const value = await request<{ id: string; websocketUrl: string }>(
     `/${name}/connect`,
     'POST',
@@ -66,6 +82,7 @@ export const prepare = async (
     const status = await request<{
       state: string
       error?: string
+      stage?: string
       workspacePath?: string
     }>(`/connections/${value.id}`, 'GET', undefined, signal)
     if (status.state === 'failed')
@@ -79,6 +96,12 @@ export const prepare = async (
         workspacePath: status.workspacePath,
       }
     }
+    await onProgress(
+      (status.stage &&
+        Object.hasOwn(setupMessages, status.stage) &&
+        setupMessages[status.stage]) ||
+        'Waiting for remote setup and the private connection…',
+    )
     await sleep(signal)
   }
   throw new CodespaceSetupTimeoutError(

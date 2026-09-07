@@ -33,6 +33,21 @@ const repositoryPath = (repository: string): string => {
   return `/repos/${repository}/codespaces`
 }
 
+const startupMessage = (state: string): string => {
+  const messages: Record<string, string> = {
+    Queued: 'Waiting for GitHub to allocate the Codespace…',
+    Provisioning: 'GitHub is provisioning the Codespace…',
+    Starting: 'GitHub is starting the Codespace…',
+    Rebuilding: 'GitHub is rebuilding the development container…',
+    Updating: 'GitHub is updating the Codespace…',
+    Available: 'Codespace is running.',
+    Shutdown: 'Codespace is stopped.',
+  }
+  return Object.hasOwn(messages, state)
+    ? messages[state]
+    : `Waiting for GitHub (state: ${state})…`
+}
+
 // One client belongs to one command. Never persist its token or give it to a relay.
 export const createGithubClient = (
   accessToken: string,
@@ -129,13 +144,21 @@ export const createGithubClient = (
   }
   const create = (repository: string): Promise<Codespace> =>
     request(repositoryPath(repository), 'POST', {})
-  const ensureAvailable = async (codespace: Codespace): Promise<void> => {
+  const ensureAvailable = async (
+    codespace: Codespace,
+    onProgress?: (message: string) => Promise<void>,
+  ): Promise<void> => {
     signal.throwIfAborted()
+    await onProgress?.(startupMessage(codespace.state))
     if (codespace.state === 'Available') return
-    if (codespace.state === 'Shutdown') await start(codespace.name)
+    if (codespace.state === 'Shutdown') {
+      await onProgress?.('Requesting GitHub to start the Codespace…')
+      await start(codespace.name)
+    }
     const deadline = Date.now() + 5 * 60_000
     while (Date.now() < deadline) {
       const value = await request<Codespace>(codespacePath(codespace.name))
+      await onProgress?.(startupMessage(value.state))
       if (value.state === 'Available') return
       if (['Failed', 'Deleted', 'Unavailable'].includes(value.state))
         throw new CodespaceUnavailableError(
