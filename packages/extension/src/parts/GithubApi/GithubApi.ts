@@ -1,4 +1,14 @@
-import { sleep } from './Sleep.ts'
+import {
+  AuthenticationError,
+  CommandFailedError,
+  CodespacesRequestError,
+  CodespaceUnavailableError,
+  CodespaceStartupTimeoutError,
+  InvalidCodespaceNameError,
+  InvalidRepositoryError,
+  RepositoryListTooLargeError,
+} from '../../../../shared/src/Errors.ts'
+import { sleep } from '../Sleep/Sleep.ts'
 
 export interface Codespace {
   name: string
@@ -11,7 +21,7 @@ export interface Repository {
 }
 const codespacePath = (name: string): string => {
   if (!/^[a-z0-9][a-z0-9-]{0,99}$/.test(name))
-    throw new Error('Invalid Codespace name')
+    throw new InvalidCodespaceNameError('Invalid Codespace name')
   return `/user/codespaces/${name}`
 }
 const repositoryPath = (repository: string): string => {
@@ -19,7 +29,7 @@ const repositoryPath = (repository: string): string => {
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
     repository.split('/').some((part) => part === '.' || part === '..')
   )
-    throw new Error('Enter a repository as owner/name.')
+    throw new InvalidRepositoryError('Enter a repository as owner/name.')
   return `/repos/${repository}/codespaces`
 }
 
@@ -38,7 +48,7 @@ export const createGithubClient = (
     signal.throwIfAborted()
   }
   if (!accessToken)
-    throw new Error('LVCE did not return a GitHub access token.')
+    throw new AuthenticationError('LVCE did not return a GitHub access token.')
   signal.addEventListener('abort', dispose, { once: true })
   const request = async <T>(
     path: string,
@@ -46,7 +56,8 @@ export const createGithubClient = (
     body?: unknown,
   ): Promise<T> => {
     signal.throwIfAborted()
-    if (!accessToken) throw new Error('GitHub command has finished.')
+    if (!accessToken)
+      throw new CommandFailedError('GitHub command has finished.')
     const response = await fetchFn(`https://api.github.com${path}`, {
       method,
       headers: {
@@ -66,13 +77,13 @@ export const createGithubClient = (
       (scopes !== null && !scopes.split(/,\s*/).includes('codespace'))
     ) {
       dispose()
-      throw new Error(
+      throw new AuthenticationError(
         'Run Codespaces: Authorize GitHub Access to authorize Codespaces, then try again.',
       )
     }
     if (!response.ok) {
       const value = await response.json().catch(() => ({}))
-      throw new Error(
+      throw new CodespacesRequestError(
         typeof value.message === 'string'
           ? value.message.slice(0, 500)
           : `GitHub returned ${response.status}`,
@@ -106,7 +117,9 @@ export const createGithubClient = (
         })
       if (value.length < 100) return [...repositories.values()]
     }
-    throw new Error('The GitHub repository list is too large to load.')
+    throw new RepositoryListTooLargeError(
+      'The GitHub repository list is too large to load.',
+    )
   }
   const start = async (name: string): Promise<void> => {
     await request(`${codespacePath(name)}/start`, 'POST')
@@ -125,10 +138,12 @@ export const createGithubClient = (
       const value = await request<Codespace>(codespacePath(codespace.name))
       if (value.state === 'Available') return
       if (['Failed', 'Deleted', 'Unavailable'].includes(value.state))
-        throw new Error(`Codespace is ${value.state}. Try starting it again.`)
+        throw new CodespaceUnavailableError(
+          `Codespace is ${value.state}. Try starting it again.`,
+        )
       await sleep(signal)
     }
-    throw new Error(
+    throw new CodespaceStartupTimeoutError(
       'Codespace startup timed out. Check its state and try again.',
     )
   }

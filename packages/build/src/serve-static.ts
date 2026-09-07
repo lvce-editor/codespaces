@@ -1,3 +1,4 @@
+import { InvalidPathError } from '../../shared/src/Errors.ts'
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
@@ -24,7 +25,7 @@ createServer(async (req, res) => {
       '.' + decodeURIComponent(url.pathname.slice('/codespaces'.length)),
     )
     if (file !== root && !file.startsWith(root + path.sep))
-      throw new Error('Invalid path')
+      throw new InvalidPathError('Invalid path')
     const info = await stat(file)
     if (info.isDirectory()) file = path.join(file, 'index.html')
     res.setHeader(

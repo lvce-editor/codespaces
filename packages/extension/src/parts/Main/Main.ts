@@ -1,4 +1,10 @@
 import {
+  ConnectionCancelledError,
+  InvalidRepositoryError,
+  NoCodespacesError,
+  OperationInProgressError,
+} from '../../../../shared/src/Errors.ts'
+import {
   activate as activateApi,
   executeCommand,
   registerCommand,
@@ -8,17 +14,17 @@ import {
   showQuickPick,
   showNotification,
 } from '@lvce-editor/api'
-import { getToken } from './Auth.ts'
-import * as Api from './CodespacesApi.ts'
+import { getToken } from '../Auth/Auth.ts'
+import * as Api from '../CodespacesApi/CodespacesApi.ts'
 import {
   createGithubClient,
   type GithubClient,
   type Codespace,
-} from './GithubApi.ts'
-import * as Connection from './Connection.ts'
-import { fileSystem } from './FileSystem.ts'
-import { backendUrl, siteUrl, getEndpoint } from './Urls.ts'
-import { connectToGateway } from './Connect.ts'
+} from '../GithubApi/GithubApi.ts'
+import * as Connection from '../Connection/Connection.ts'
+import { fileSystem } from '../FileSystem/FileSystem.ts'
+import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
+import { connectToGateway } from '../Connect/Connect.ts'
 
 let output: ReturnType<typeof createOutputChannel> | undefined
 let busy = false
@@ -38,7 +44,7 @@ const pickCodespace = async (
 ): Promise<Codespace | undefined> => {
   const codespaces = await github.list()
   if (!codespaces.length)
-    throw new Error(
+    throw new NoCodespacesError(
       'No existing Codespaces found. Run Codespaces: Set Up a Codespace to create one from a GitHub repository.',
     )
   const items = codespaces.map((value) => ({
@@ -113,7 +119,8 @@ const connectSelected = async (
         if (!controller.signal.aborted) session = id
       },
     )
-    if (controller.signal.aborted) throw new Error('Connection cancelled')
+    if (controller.signal.aborted)
+      throw new ConnectionCancelledError('Connection cancelled')
     await openWorkspace(codespace.name, result, controller.signal)
     await progress(
       `Connected to ${codespace.name}.\nUse Codespaces: Stop Codespace to stop GitHub compute when finished. Disconnect only closes the editor connection.\n`,
@@ -191,7 +198,7 @@ export const setup = (): Promise<void> =>
         : name
     if (typeof repository !== 'string' || !repository) return
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
-      throw new Error('Enter a repository as owner/name.')
+      throw new InvalidRepositoryError('Enter a repository as owner/name.')
     const confirmation = await showQuickPick({
       items: [
         {
@@ -312,7 +319,7 @@ export const activate = async (): Promise<void> => {
                 return
               }
               if (busy)
-                throw new Error(
+                throw new OperationInProgressError(
                   'A Codespaces operation is already in progress. Use Disconnect to cancel it.',
                 )
               busy = true

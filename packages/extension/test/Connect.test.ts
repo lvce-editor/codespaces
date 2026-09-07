@@ -1,7 +1,14 @@
+import {
+  GatewayConnectionError,
+  GatewayUnreachableError,
+  InvalidEndpointError,
+  InvalidGatewayConnectionError,
+  InvalidAccountIdError,
+} from '../../shared/src/Errors.ts'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { connectToGateway } from '../src/Connect.ts'
-import { getEndpoint, getSetupCommand } from '../src/Urls.ts'
+import { connectToGateway } from '../src/parts/Connect/Connect.ts'
+import { getEndpoint, getSetupCommand } from '../src/parts/Urls/Urls.ts'
 
 test('resolves codespace names and rejects token exfiltration endpoints', () => {
   assert.equal(
@@ -16,7 +23,10 @@ test('resolves codespace names and rejects token exfiltration endpoints', () => 
     'file:///tmp',
     'http://foo-3774.app.github.dev',
   ])
-    assert.throws(() => getEndpoint(value))
+    assert.throws(() => getEndpoint(value), {
+      constructor: InvalidEndpointError,
+      code: 'E_INVALID_ENDPOINT',
+    })
 })
 test('setup command contains account id, never an access token, and quotes shell input', () => {
   assert.ok(getSetupCommand('account-id').endsWith("--owner='account-id'"))
@@ -47,7 +57,11 @@ test('connection keeps credentials in headers and requires matching websocket au
     connectToGateway(endpoint, 'token', async () =>
       Response.json({ ...response, websocketUrl: 'wss://evil.com/' }),
     ),
-    /invalid connection/,
+    {
+      constructor: InvalidGatewayConnectionError,
+      code: 'E_INVALID_GATEWAY_CONNECTION',
+      message: 'Codespaces gateway returned an invalid connection.',
+    },
   )
 })
 test('private forwarded ports and expired login report actionable failures', async () => {
@@ -55,7 +69,11 @@ test('private forwarded ports and expired login report actionable failures', asy
     connectToGateway(getEndpoint('test'), 'token', async () => {
       throw new TypeError('Failed to fetch')
     }),
-    /port 3774 is public/,
+    {
+      constructor: GatewayUnreachableError,
+      code: 'E_GATEWAY_UNREACHABLE',
+      message: /port 3774 is public/,
+    },
   )
   await assert.rejects(
     connectToGateway(
@@ -63,6 +81,17 @@ test('private forwarded ports and expired login report actionable failures', asy
       'token',
       async () => new Response(null, { status: 403 }),
     ),
-    /account used during setup/,
+    {
+      constructor: GatewayConnectionError,
+      code: 'E_GATEWAY_CONNECTION',
+      message: /account used during setup/,
+    },
   )
+})
+
+test('setup rejects missing account identifiers with a coded error', () => {
+  assert.throws(() => getSetupCommand(''), {
+    constructor: InvalidAccountIdError,
+    code: 'E_INVALID_ACCOUNT_ID',
+  })
 })

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createGithubClient, type Codespace } from '../src/GithubApi.ts'
+import {
+  createGithubClient,
+  type Codespace,
+} from '../src/parts/GithubApi/GithubApi.ts'
 
 const codespace: Codespace = {
   name: 'happy-cat',

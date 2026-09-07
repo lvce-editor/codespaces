@@ -1,6 +1,13 @@
-import { sleep } from './Sleep.ts'
-import { getToken } from './Auth.ts'
-import { backendUrl } from './Urls.ts'
+import {
+  CodespaceSetupError,
+  CodespaceSetupTimeoutError,
+  CodespacesRequestError,
+  InvalidRelayAddressError,
+  InvalidWorkspacePathError,
+} from '../../../../shared/src/Errors.ts'
+import { sleep } from '../Sleep/Sleep.ts'
+import { getToken } from '../Auth/Auth.ts'
+import { backendUrl } from '../Urls/Urls.ts'
 
 export const request = async <T>(
   path: string,
@@ -26,7 +33,7 @@ export const request = async <T>(
       response.status === 403
         ? ' Run Codespaces: Authorize GitHub Access if authorization is missing.'
         : ''
-    throw new Error(
+    throw new CodespacesRequestError(
       `${value.error || `Codespaces request failed (${response.status})`}${hint}`,
     )
   }
@@ -53,7 +60,7 @@ export const prepare = async (
     url.username ||
     url.password
   )
-    throw new Error('Invalid Codespaces relay address')
+    throw new InvalidRelayAddressError('Invalid Codespaces relay address')
   const deadline = Date.now() + 6 * 60_000
   while (Date.now() < deadline) {
     const status = await request<{
@@ -62,10 +69,10 @@ export const prepare = async (
       workspacePath?: string
     }>(`/connections/${value.id}`, 'GET', undefined, signal)
     if (status.state === 'failed')
-      throw new Error(status.error || 'Codespace setup failed')
+      throw new CodespaceSetupError(status.error || 'Codespace setup failed')
     if (status.state === 'ready') {
       if (!status.workspacePath?.startsWith('/'))
-        throw new Error('Invalid workspace path')
+        throw new InvalidWorkspacePathError('Invalid workspace path')
       return {
         sessionToken: await getToken(),
         websocketUrl: value.websocketUrl,
@@ -74,5 +81,7 @@ export const prepare = async (
     }
     await sleep(signal)
   }
-  throw new Error('Codespace setup timed out. Try connecting again.')
+  throw new CodespaceSetupTimeoutError(
+    'Codespace setup timed out. Try connecting again.',
+  )
 }

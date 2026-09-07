@@ -1,8 +1,13 @@
+import {
+  AuthenticationError,
+  HttpsRequiredError,
+  InvalidGatewayOptionsError,
+} from '../../shared/src/Errors.ts'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { test } from 'node:test'
 import { WebSocket, WebSocketServer } from 'ws'
-import { createGateway } from '../src/Gateway.ts'
+import { createGateway } from '../src/parts/Gateway/Gateway.ts'
 
 const origin = 'https://lvce-editor.github.io'
 test('authenticates the owner, enforces origins, and proxies one-use WebSocket tickets', async () => {
@@ -28,7 +33,7 @@ test('authenticates the owner, enforces origins, and proxies one-use WebSocket t
     verifyAccount: async (token) => {
       if (token === 'good') return 'owner'
       if (token === 'other') return 'other'
-      throw new Error('bad')
+      throw new AuthenticationError('bad')
     },
   })
   const base = `http://127.0.0.1:${gateway.port}`
@@ -81,4 +86,27 @@ test('authenticates the owner, enforces origins, and proxies one-use WebSocket t
     backend.close(() => resolve())
     await promise
   }
+})
+
+test('invalid gateway configuration rejects with specific error codes', async () => {
+  const options = {
+    owner: 'owner',
+    allowedOrigin: origin,
+    publicUrl: 'https://test-3774.app.github.dev',
+    workspacePath: '/workspaces/test',
+    backendPort: 1234,
+    backendToken: 'internal-secret',
+    port: 0,
+  }
+  await assert.rejects(createGateway({ ...options, owner: '' }), {
+    constructor: InvalidGatewayOptionsError,
+    code: 'E_INVALID_GATEWAY_OPTIONS',
+  })
+  await assert.rejects(
+    createGateway({ ...options, publicUrl: 'http://example.com' }),
+    {
+      constructor: HttpsRequiredError,
+      code: 'E_HTTPS_REQUIRED',
+    },
+  )
 })
