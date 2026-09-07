@@ -171,6 +171,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await context.route('https://lvce-editor.dev/account/me', (route) =>
     route.fulfill({ json: { displayName: 'Codespaces Test' } }),
   )
+  let cleanupFails = false
   let tokenRequests = 0
   let statePolls = 0
   await context.route('https://api.github.com/**', async (route) => {
@@ -281,6 +282,16 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
       return
     }
     if (
+      pathname === '/codespaces/browser-test-codespace/connections' &&
+      cleanupFails
+    ) {
+      await route.fulfill({
+        status: 502,
+        json: { error: 'Cleanup unavailable' },
+      })
+      return
+    }
+    if (
       [
         `/codespaces/connections/${id}`,
         '/codespaces/browser-test-codespace/connections',
@@ -377,17 +388,20 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect
     .poll(() => readFile(path.join(workspace, 'codespaces-proof.txt'), 'utf8'))
     .toContain('Browser-only connection saved this.')
-  await page.keyboard.press('F1')
-  await page
-    .getByRole('combobox', {
-      name: 'Type the name of a command to run.',
-      exact: true,
-    })
-    .fill('>Codespaces: Stop Codespace')
-  await page
-    .getByRole('option', { name: 'Codespaces: Stop Codespace', exact: true })
-    .click()
-  await page.getByRole('option', { name: /browser-test-codespace/ }).click()
+  const stopFromPicker = async (): Promise<void> => {
+    await page.keyboard.press('F1')
+    await page
+      .getByRole('combobox', {
+        name: 'Type the name of a command to run.',
+        exact: true,
+      })
+      .fill('>Codespaces: Stop Codespace')
+    await page
+      .getByRole('option', { name: 'Codespaces: Stop Codespace', exact: true })
+      .click()
+    await page.getByRole('option', { name: /browser-test-codespace/ }).click()
+  }
+  await stopFromPicker()
   await expect
     .poll(() => operations)
     .toContain('POST /user/codespaces/browser-test-codespace/stop')
@@ -411,4 +425,17 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   expect(operations).toContain(
     'POST /codespaces/browser-test-codespace/connect',
   )
+  cleanupFails = true
+  await stopFromPicker()
+  await expect(
+    page.getByText(
+      /Stopped browser-test-codespace.*Could not close all editor connections/,
+    ),
+  ).toBeVisible()
+  expect(tokenRequests).toBe(3)
+  expect(
+    operations.filter(
+      (value) => value === 'POST /user/codespaces/browser-test-codespace/stop',
+    ),
+  ).toHaveLength(2)
 })
