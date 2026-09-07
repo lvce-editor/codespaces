@@ -99,7 +99,13 @@ const main = async (): Promise<void> => {
     process.env.LVCE_CODESPACES_ROOT || path.join(homedir(), '.lvce-codespaces')
   const runtime = path.join(root, 'runtime', nodeVersion)
   const server = path.join(root, 'server', version)
+  const progress = (stage: string): void => {
+    if (relay)
+      console.log(JSON.stringify({ type: 'lvce-relay-progress', stage }))
+  }
+  progress('installing-node')
   await installArchive(nodeUrl, nodeHash, runtime)
+  progress('installing-server')
   await installArchive(serverUrl, serverHash, server)
   const node = path.join(
     runtime,
@@ -109,6 +115,7 @@ const main = async (): Promise<void> => {
   )
   const entry = path.join(server, 'lvce-remote-ssh-server.mjs')
   await access(entry)
+  progress('starting-server')
   const child = spawn(node, [entry, 'connect-or-start'], {
     env: { ...process.env, LVCE_REMOTE_SSH_ROOT: root },
     stdio: ['pipe', 'pipe', 'inherit'],

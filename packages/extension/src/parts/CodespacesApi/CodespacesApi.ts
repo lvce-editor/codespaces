@@ -95,13 +95,46 @@ const sleep = async (signal: AbortSignal): Promise<void> => {
   if (signal.aborted) stop()
   return promise
 }
+export type OnProgress = (message: string) => Promise<void>
+
+const startupMessage = (state: string): string => {
+  const messages: Record<string, string> = {
+    Queued: 'Waiting for GitHub to allocate the Codespace…',
+    Provisioning: 'GitHub is provisioning the Codespace…',
+    Starting: 'GitHub is starting the Codespace…',
+    Rebuilding: 'GitHub is rebuilding the development container…',
+    Updating: 'GitHub is updating the Codespace…',
+    Available: 'Codespace is running.',
+    Shutdown: 'Codespace is stopped.',
+  }
+  return Object.hasOwn(messages, state)
+    ? messages[state]
+    : `Waiting for GitHub (state: ${state})…`
+}
+
+const setupMessages: Record<string, string> = {
+  'connecting-ssh': 'Connecting to the Codespace…',
+  'downloading-node': 'Downloading Node.js for setup…',
+  'verifying-node': 'Verifying and extracting Node.js for setup…',
+  'downloading-setup': 'Downloading the LVCE setup program…',
+  'installing-runtime': 'Checking and installing the LVCE runtime…',
+  'installing-node': 'Checking and installing the remote Node.js runtime…',
+  'installing-server': 'Checking and installing the LVCE remote server…',
+  'starting-server': 'Starting the LVCE remote server…',
+  'opening-tunnel': 'Establishing the private connection…',
+}
+
 export const ensureAvailable = async (
   codespace: Codespace,
   signal: AbortSignal,
+  onProgress: OnProgress,
 ): Promise<void> => {
+  await onProgress(startupMessage(codespace.state))
   if (codespace.state === 'Available') return
-  if (codespace.state === 'Shutdown')
+  if (codespace.state === 'Shutdown') {
+    await onProgress('Requesting GitHub to start the Codespace…')
     await request(`/${codespace.name}/start`, 'POST', undefined, signal)
+  }
   const deadline = Date.now() + 5 * 60_000
   while (Date.now() < deadline) {
     const value = await request<Codespace>(
@@ -110,6 +143,7 @@ export const ensureAvailable = async (
       undefined,
       signal,
     )
+    await onProgress(startupMessage(value.state))
     if (value.state === 'Available') return
     if (['Failed', 'Deleted', 'Unavailable'].includes(value.state))
       throw new CodespaceUnavailableError(
@@ -125,7 +159,9 @@ export const prepare = async (
   name: string,
   signal: AbortSignal,
   onSession: (id: string) => void,
+  onProgress: OnProgress,
 ) => {
+  await onProgress('Requesting a private connection…')
   const value = await request<{ id: string; websocketUrl: string }>(
     `/${name}/connect`,
     'POST',
@@ -148,6 +184,7 @@ export const prepare = async (
     const status = await request<{
       state: string
       error?: string
+      stage?: string
       workspacePath?: string
     }>(`/connections/${value.id}`, 'GET', undefined, signal)
     if (status.state === 'failed')
@@ -161,6 +198,12 @@ export const prepare = async (
         workspacePath: status.workspacePath,
       }
     }
+    await onProgress(
+      (status.stage &&
+        Object.hasOwn(setupMessages, status.stage) &&
+        setupMessages[status.stage]) ||
+        'Waiting for remote setup and the private connection…',
+    )
     await sleep(signal)
   }
   throw new CodespaceSetupTimeoutError(
