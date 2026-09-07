@@ -1,6 +1,6 @@
 import { cp, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { bundle } from './bundle.ts'
+import { bundle, bundleExperimental } from './bundle.ts'
 import { root } from './root.ts'
 
 const { exportStatic } = await import(
@@ -13,6 +13,13 @@ const { commitHash } = await exportStatic({
   root,
   extensionPath: join(root, 'packages/extension'),
 })
+// The exporter may replace dist; bundle the opt-in proof after it completes.
+await bundleExperimental()
+await cp(
+  join(root, 'packages/experimental/static'),
+  join(root, 'dist/experimental'),
+  { recursive: true },
+)
 await cp(
   join(root, 'packages/extension/dist'),
   join(root, `dist/${commitHash}/extensions/builtin.codespaces/dist`),
