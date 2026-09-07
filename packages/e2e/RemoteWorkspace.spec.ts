@@ -5,8 +5,10 @@ import { mkdtemp, writeFile, readFile, rm, glob } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
+import { fileURLToPath } from 'node:url'
 import { createGateway } from '../server/src/Gateway.ts'
 
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`
 let backend: ChildProcess
 let gateway: Awaited<ReturnType<typeof createGateway>>
@@ -29,13 +31,13 @@ test.beforeAll(async () => {
     process.execPath,
     [
       process.env.LVCE_CODESPACES_TEST_BACKEND ||
-        'node_modules/@lvce-editor/server/src/server.js',
+        fileURLToPath(import.meta.resolve('@lvce-editor/server/src/server.js')),
       '--as-remote-ssh-server',
       '--port=0',
       '--connection-token=test-backend-secret',
       workspace,
     ],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] },
   )
   const backendPort = await new Promise<number>((resolve, reject) => {
     const lines = createInterface({ input: backend.stdout! })
@@ -213,7 +215,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   // fixture transport destination in the served extension, leaving the actual
   // ticket exchange, RPC, and remote filesystem implementation intact.
   const [extensionPath] = await Array.fromAsync(
-    glob('dist/**/codespacesMain.js'),
+    glob(path.join(repoRoot, 'dist/**/codespacesMain.js')),
   )
   originalExtension = {
     path: extensionPath,
