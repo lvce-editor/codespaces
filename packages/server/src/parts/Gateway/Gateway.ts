@@ -4,7 +4,7 @@ import {
   HttpsRequiredError,
   InvalidAccountIdError,
   InvalidGatewayOptionsError,
-} from '../../shared/src/Errors.ts'
+} from '../../../../shared/src/Errors.ts'
 import { randomBytes } from 'node:crypto'
 import {
   createServer,

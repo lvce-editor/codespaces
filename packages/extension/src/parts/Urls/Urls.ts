@@ -1,7 +1,7 @@
 import {
   InvalidAccountIdError,
   InvalidEndpointError,
-} from '../../shared/src/Errors.ts'
+} from '../../../../shared/src/Errors.ts'
 export const backendUrl = 'https://lvce-editor.dev'
 export const siteUrl = 'https://lvce-editor.github.io/codespaces/'
 export const port = 3774

@@ -13,7 +13,7 @@ await build({
 })
 await mkdir('.tmp/setup', { recursive: true })
 await build({
-  entryPoints: ['packages/server/src/Setup.ts'],
+  entryPoints: ['packages/server/src/parts/Setup/Setup.ts'],
   outfile: '.tmp/setup/setup.mjs',
   bundle: true,
   format: 'esm',

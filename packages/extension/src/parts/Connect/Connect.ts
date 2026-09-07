@@ -2,7 +2,7 @@ import {
   GatewayConnectionError,
   GatewayUnreachableError,
   InvalidGatewayConnectionError,
-} from '../../shared/src/Errors.ts'
+} from '../../../../shared/src/Errors.ts'
 export interface ConnectedWorkspace {
   readonly authentication: 'websocket-ticket'
   readonly sessionToken: string

@@ -7,8 +7,8 @@ import {
 } from '../../shared/src/Errors.ts'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { connectToGateway } from '../src/Connect.ts'
-import { getEndpoint, getSetupCommand } from '../src/Urls.ts'
+import { connectToGateway } from '../src/parts/Connect/Connect.ts'
+import { getEndpoint, getSetupCommand } from '../src/parts/Urls/Urls.ts'
 
 test('resolves codespace names and rejects token exfiltration endpoints', () => {
   assert.equal(

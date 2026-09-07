@@ -171,6 +171,10 @@ export class RemoteServerNotPairedError extends CodespacesError {
   readonly code = 'E_REMOTE_SERVER_NOT_PAIRED'
 }
 
+export class RepositoryListTooLargeError extends CodespacesError {
+  readonly code = 'E_REPOSITORY_LIST_TOO_LARGE'
+}
+
 export class SetupOwnerRequiredError extends CodespacesError {
   readonly code = 'E_SETUP_OWNER_REQUIRED'
 }

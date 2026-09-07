@@ -11,8 +11,8 @@ import {
   WebSocketClosedError,
   WebSocketError,
   WebSocketTimeoutError,
-} from '../../shared/src/Errors.ts'
-import { getToken } from './Auth.ts'
+} from '../../../../shared/src/Errors.ts'
+import { getToken } from '../Auth/Auth.ts'
 
 interface ConnectionOptions {
   readonly authority?: string

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import { createGateway } from '../server/src/Gateway.ts'
+import { createGateway } from '../server/src/parts/Gateway/Gateway.ts'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`
@@ -150,6 +150,14 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
 }) => {
   const id = 'a'.repeat(64)
   const operations: string[] = []
+  const repositoryPages: number[] = []
+  const repositories = [
+    ...Array.from({ length: 200 }, (_, i) => ({
+      full_name: `test/repository-${i}`,
+      private: false,
+    })),
+    { full_name: 'test/project', private: true },
+  ]
   const auth = await request.post(
     `http://127.0.0.1:${gateway.port}/auth/connect`,
     {
@@ -183,6 +191,20 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
         },
       )
       await route.fulfill({ json: await response.json() })
+      return
+    }
+    if (pathname === '/codespaces/repositories') {
+      const pageNumber = Number(new URL(req.url()).searchParams.get('page'))
+      repositoryPages.push(pageNumber)
+      await route.fulfill({
+        json: {
+          repositories: repositories.slice(
+            (pageNumber - 1) * 100,
+            pageNumber * 100,
+          ),
+          hasMore: pageNumber * 100 < repositories.length,
+        },
+      })
       return
     }
     operations.push(`${req.method()} ${pathname}`)
@@ -283,7 +305,10 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     name: /^Repository to create/,
   })
   await repository.fill('test/project')
-  await repository.press('Enter')
+  await page
+    .getByRole('option', { name: /^test\/project/ })
+    .click({ timeout: 5000 })
+  expect(repositoryPages).toEqual([1, 2, 3])
   await page.getByRole('option', { name: /Create and Connect/ }).click()
   await expect(
     page.getByText('codespaces-proof.txt', { exact: true }),

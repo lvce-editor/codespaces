@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { test } from 'node:test'
 import { WebSocket, WebSocketServer } from 'ws'
-import { createGateway } from '../src/Gateway.ts'
+import { createGateway } from '../src/parts/Gateway/Gateway.ts'
 
 const origin = 'https://lvce-editor.github.io'
 test('authenticates the owner, enforces origins, and proxies one-use WebSocket tickets', async () => {

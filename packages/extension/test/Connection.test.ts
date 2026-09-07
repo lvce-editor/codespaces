@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { test } from 'node:test'
 import { WebSocketServer } from 'ws'
-import * as Connection from '../src/Connection.ts'
-import { createRemoteServerFileSystem } from '../src/FileSystem.ts'
+import * as Connection from '../src/parts/Connection/Connection.ts'
+import { createRemoteServerFileSystem } from '../src/parts/FileSystem/FileSystem.ts'
 import {
   FileExistsError,
   InvalidWebSocketTicketError,
