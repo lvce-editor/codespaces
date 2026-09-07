@@ -16,6 +16,7 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const browserOrigin = `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}`
 let backend: ChildProcess
 let gateway: Awaited<ReturnType<typeof createGateway>>
+let gatewayOptions: Parameters<typeof createGateway>[0]
 let workspace: string
 let originalExtension: { path: string; source: string } | undefined
 test.afterEach(async () => {
@@ -60,7 +61,7 @@ test.beforeAll(async () => {
   })
   const backendPort = await promise
   // Only the identity provider is a fixture. The gateway and LVCE backend are real.
-  gateway = await createGateway({
+  gatewayOptions = {
     owner: 'test-owner',
     allowedOrigin: browserOrigin,
     publicUrl: 'http://127.0.0.1:0',
@@ -73,7 +74,8 @@ test.beforeAll(async () => {
         throw new InvalidAccountIdError('Invalid test identity')
       return 'test-owner'
     },
-  })
+  }
+  gateway = await createGateway(gatewayOptions)
 })
 test.afterAll(async () => {
   if (gateway) await gateway.close()
@@ -83,6 +85,82 @@ test.afterAll(async () => {
   }
   if (workspace) await rm(workspace, { recursive: true, force: true })
 })
+
+test('opens a working terminal after the relay closes and reconnects', async ({
+  page,
+  context,
+}) => {
+  await context.route('https://lvce-editor.dev/account/me', (route) =>
+    route.fulfill({ json: { displayName: 'Codespaces Test' } }),
+  )
+  await page.goto('/codespaces/')
+  await page.waitForSelector('.Workbench')
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('auth-worker', 1)
+      request.onupgradeneeded = () => request.result.createObjectStore('auth')
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const transaction = database.transaction('auth', 'readwrite')
+        transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+        transaction
+          .objectStore('auth')
+          .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+        transaction.oncomplete = () => {
+          database.close()
+          resolve()
+        }
+      }
+    })
+  })
+  const runCommand = async (name: string): Promise<void> => {
+    await page.keyboard.press('Control+Shift+p')
+    await page
+      .getByRole('combobox', {
+        name: 'Type the name of a command to run.',
+        exact: true,
+      })
+      .fill(`>${name}`)
+    await page.getByRole('option', { name, exact: true }).click()
+  }
+  const connect = async (): Promise<void> => {
+    await runCommand('Codespaces: Connect to Manual Gateway')
+    const input = page.getByRole('combobox', { name: /^Codespace forwarded/ })
+    await input.fill(`http://127.0.0.1:${gateway.port}`)
+    await input.press('Enter')
+    await expect(
+      page.getByText('codespaces-proof.txt', { exact: true }),
+    ).toBeVisible()
+    const terminals = page.locator('.PanelTab[name="Terminals"]')
+    if (!(await terminals.isVisible())) await runCommand('Layout: Toggle Panel')
+    await terminals.click()
+  }
+  const verifyTerminal = async (file: string): Promise<void> => {
+    const input = page.locator('.xterm-helper-textarea')
+    await expect(input).toBeVisible()
+    await input.pressSequentially(`printf working > ${file}`)
+    await input.press('Enter')
+    await expect
+      .poll(() => readFile(path.join(workspace, file), 'utf8').catch(() => ''))
+      .toBe('working')
+  }
+  await connect()
+  await verifyTerminal('before-reconnect.txt')
+  await runCommand('Codespaces: Disconnect')
+  await expect(
+    page.getByRole('heading', { name: '/', exact: true }),
+  ).toBeVisible()
+  const port = gateway.port
+  // Real socket closure is essential: an HTTP-only cleanup fixture cannot catch
+  // a worker reusing an RPC connection after the relay has terminated it.
+  await gateway.close()
+  gateway = await createGateway({ ...gatewayOptions, port })
+  await connect()
+  await page.getByRole('button', { name: 'New Terminal', exact: true }).click()
+  await verifyTerminal('after-reconnect.txt')
+})
+
 test('connects the Pages editor to real remote files', async ({
   page,
   context,
