@@ -37,22 +37,22 @@ test.beforeAll(async () => {
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   )
-  const backendPort = await new Promise<number>((resolve, reject) => {
-    const lines = createInterface({ input: backend.stdout! })
-    const timer = setTimeout(
-      () => reject(new Error('Backend startup timeout')),
-      20_000,
-    )
-    backend.once('error', reject)
-    lines.on('line', (line) => {
-      const match = /listening on http:\/\/127\.0\.0\.1:(\d+)/.exec(line)
-      if (match) {
-        clearTimeout(timer)
-        lines.close()
-        resolve(Number(match[1]))
-      }
-    })
+  const { promise, resolve, reject } = Promise.withResolvers<number>()
+  const lines = createInterface({ input: backend.stdout! })
+  const timer = setTimeout(
+    () => reject(new Error('Backend startup timeout')),
+    20_000,
+  )
+  backend.once('error', reject)
+  lines.on('line', (line) => {
+    const match = /listening on http:\/\/127\.0\.0\.1:(\d+)/.exec(line)
+    if (match) {
+      clearTimeout(timer)
+      lines.close()
+      resolve(Number(match[1]))
+    }
   })
+  const backendPort = await promise
   // Only the identity provider is a fixture. The gateway and LVCE backend are real.
   gateway = await createGateway({
     owner: 'test-owner',
@@ -86,23 +86,23 @@ test('connects the Pages editor to real remote files', async ({
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
   await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open('auth-worker', 1)
-      request.onupgradeneeded = () => request.result.createObjectStore('auth')
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
-        const database = request.result
-        const transaction = database.transaction('auth', 'readwrite')
-        transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
-        transaction
-          .objectStore('auth')
-          .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
-        transaction.oncomplete = () => {
-          database.close()
-          resolve()
-        }
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
+    const request = indexedDB.open('auth-worker', 1)
+    request.onupgradeneeded = () => request.result.createObjectStore('auth')
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {
+      const database = request.result
+      const transaction = database.transaction('auth', 'readwrite')
+      transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+      transaction
+        .objectStore('auth')
+        .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+      transaction.oncomplete = () => {
+        database.close()
+        resolve()
       }
-    })
+    }
+    await promise
   })
   await page.keyboard.press('F1')
   await page
@@ -241,23 +241,23 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
   await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open('auth-worker', 1)
-      req.onupgradeneeded = () => req.result.createObjectStore('auth')
-      req.onerror = () => reject(req.error)
-      req.onsuccess = () => {
-        const database = req.result
-        const transaction = database.transaction('auth', 'readwrite')
-        transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
-        transaction
-          .objectStore('auth')
-          .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
-        transaction.oncomplete = () => {
-          database.close()
-          resolve()
-        }
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
+    const req = indexedDB.open('auth-worker', 1)
+    req.onupgradeneeded = () => req.result.createObjectStore('auth')
+    req.onerror = () => reject(req.error)
+    req.onsuccess = () => {
+      const database = req.result
+      const transaction = database.transaction('auth', 'readwrite')
+      transaction.objectStore('auth').put('test-lvce-token', 'accessToken')
+      transaction
+        .objectStore('auth')
+        .put(String(Date.now() + 3_600_000), 'accessTokenExpiresAt')
+      transaction.oncomplete = () => {
+        database.close()
+        resolve()
       }
-    })
+    }
+    await promise
   })
   await page.keyboard.press('F1')
   await page
