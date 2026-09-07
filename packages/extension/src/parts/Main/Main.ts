@@ -16,6 +16,11 @@ import {
 } from '@lvce-editor/api'
 import { getToken } from '../Auth/Auth.ts'
 import * as Api from '../CodespacesApi/CodespacesApi.ts'
+import {
+  createGithubClient,
+  type GithubClient,
+  type Codespace,
+} from '../GithubApi/GithubApi.ts'
 import * as Connection from '../Connection/Connection.ts'
 import { fileSystem } from '../FileSystem/FileSystem.ts'
 import { backendUrl, siteUrl, getEndpoint } from '../Urls/Urls.ts'
@@ -26,6 +31,7 @@ let output: ReturnType<typeof createOutputChannel> | undefined
 let busy = false
 let activated = false
 let operation: AbortController | undefined
+let management: AbortController | undefined
 let session: string | undefined
 let connectedName: string | undefined
 const progress = async (message: string): Promise<void> => {
@@ -34,9 +40,10 @@ const progress = async (message: string): Promise<void> => {
   await openOutputView({ channel: 'codespaces' })
 }
 const pickCodespace = async (
+  github: GithubClient,
   placeholder: string,
-): Promise<Api.Codespace | undefined> => {
-  const codespaces = await Api.list()
+): Promise<Codespace | undefined> => {
+  const codespaces = await github.list()
   if (!codespaces.length)
     throw new NoCodespacesError(
       'No existing Codespaces found. Run Codespaces: Set Up a Codespace to create one from a GitHub repository.',
@@ -53,7 +60,8 @@ const pickCodespace = async (
       : (selected as { label?: string } | undefined)?.label
   return codespaces.find((value) => value.name === name)
 }
-const release = async (): Promise<void> => {
+const release = async (cancelManagement = true): Promise<void> => {
+  if (cancelManagement) management?.abort()
   operation?.abort()
   operation = undefined
   const previous = session
@@ -84,8 +92,14 @@ const openWorkspace = async (
     workspacePath: value.workspacePath,
   })
 }
-const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
-  await release()
+const connectSelected = async (
+  codespace: Codespace,
+  github: GithubClient,
+  signal: AbortSignal,
+): Promise<void> => {
+  signal.throwIfAborted()
+  await release(false)
+  signal.throwIfAborted()
   const controller = new AbortController()
   operation = controller
   let created: string | undefined
@@ -104,7 +118,8 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
   try {
     await onProgress('Checking Codespace status…')
     await openOutputView({ channel: 'codespaces' })
-    await Api.ensureAvailable(codespace, controller.signal, onProgress)
+    await github.ensureAvailable(codespace, onProgress)
+    signal.throwIfAborted()
     const result = await Api.prepare(
       codespace.name,
       controller.signal,
@@ -138,87 +153,125 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
     if (!controller.signal.aborted) throw error
   }
 }
-export const setup = async (): Promise<void> => {
-  await getToken()
-  await progress('Loading your GitHub repositories…')
-  const repositories = await Api.listRepositories()
-  const manualLabel = 'Enter a repository manually…'
-  const selected = await showQuickPick({
-    items: [
-      ...repositories.map((repository) => ({
-        label: repository.full_name,
-        value: repository.full_name,
-        description: repository.private ? 'Private' : 'Public',
-      })),
-      {
-        label: manualLabel,
-        value: manualLabel,
-        description: 'Type owner/repository',
-      },
-    ],
-    placeholder: repositories.length
-      ? 'Repository to create a Codespace in (search your GitHub repositories)'
-      : 'No repositories returned by GitHub. Enter one manually.',
-  })
-  const name =
-    typeof selected === 'string'
-      ? selected
-      : (selected as { label?: string } | undefined)?.label
-  const repository =
-    name === manualLabel
-      ? await showQuickPick({
-          items: [],
-          acceptInput: true,
-          placeholder: 'Enter repository as owner/name',
-        })
-      : name
-  if (typeof repository !== 'string' || !repository) return
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
-    throw new InvalidRepositoryError('Enter a repository as owner/name.')
-  const confirmation = await showQuickPick({
-    items: [
-      {
-        label: 'Create and Connect',
-        value: 'Create and Connect',
-        description: `Create a Codespace in ${repository}. GitHub compute and storage charges may apply.`,
-      },
-      { label: 'Cancel', value: 'Cancel', description: '' },
-    ],
-    placeholder: 'Create Codespace using GitHub defaults?',
-  })
-  if (
-    confirmation !== 'Create and Connect' &&
-    (confirmation as { label?: string })?.label !== 'Create and Connect'
-  )
-    return
-  await progress(`Creating Codespace in ${repository}…`)
-  const codespace = await Api.request<Api.Codespace>('', 'POST', { repository })
-  await connectSelected(codespace)
-}
-export const connect = async (): Promise<void> => {
-  const codespace = await pickCodespace('Select a Codespace to connect to')
-  if (codespace) await connectSelected(codespace)
-}
-const start = async (): Promise<void> => {
-  const codespace = await pickCodespace('Select a Codespace to start')
-  if (!codespace) return
-  await Api.request(`/${codespace.name}/start`, 'POST')
-  await progress(
-    `Starting ${codespace.name}. Run Codespaces: Connect to Codespace when ready.`,
-  )
-}
-const stop = async (): Promise<void> => {
-  const codespace = await pickCodespace('Select a Codespace to stop')
-  if (!codespace) return
-  await Api.request(`/${codespace.name}/stop`, 'POST')
-  if (connectedName === codespace.name) {
-    await release()
-    await executeCommand('Workspace.setUri', 'memfs:///')
+const runGithub = async (
+  callback: (github: GithubClient, signal: AbortSignal) => Promise<void>,
+): Promise<void> => {
+  const controller = new AbortController()
+  management = controller
+  let github: GithubClient | undefined
+  try {
+    github = createGithubClient(
+      (
+        await Api.request<{ accessToken: string }>(
+          '/auth/github-token',
+          'POST',
+          undefined,
+          controller.signal,
+        )
+      ).accessToken,
+      controller.signal,
+    )
+    await callback(github, controller.signal)
+  } catch (error) {
+    if (!controller.signal.aborted) throw error
+  } finally {
+    github?.dispose()
+    if (management === controller) management = undefined
   }
-  await progress(
-    `Stopped ${codespace.name}. GitHub storage charges may still apply.`,
-  )
 }
+export const setup = (): Promise<void> =>
+  runGithub(async (github, signal) => {
+    await progress('Loading your GitHub repositories…')
+    const repositories = await github.listRepositories()
+    const manualLabel = 'Enter a repository manually…'
+    const selected = await showQuickPick({
+      items: [
+        ...repositories.map((repository) => ({
+          label: repository.full_name,
+          value: repository.full_name,
+          description: repository.private ? 'Private' : 'Public',
+        })),
+        {
+          label: manualLabel,
+          value: manualLabel,
+          description: 'Type owner/repository',
+        },
+      ],
+      placeholder: repositories.length
+        ? 'Repository to create a Codespace in (search your GitHub repositories)'
+        : 'No repositories returned by GitHub. Enter one manually.',
+    })
+    const name =
+      typeof selected === 'string'
+        ? selected
+        : (selected as { label?: string } | undefined)?.label
+    const repository =
+      name === manualLabel
+        ? await showQuickPick({
+            items: [],
+            acceptInput: true,
+            placeholder: 'Enter repository as owner/name',
+          })
+        : name
+    if (typeof repository !== 'string' || !repository) return
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
+      throw new InvalidRepositoryError('Enter a repository as owner/name.')
+    const confirmation = await showQuickPick({
+      items: [
+        {
+          label: 'Create and Connect',
+          value: 'Create and Connect',
+          description: `Create a Codespace in ${repository}. GitHub compute and storage charges may apply.`,
+        },
+        { label: 'Cancel', value: 'Cancel', description: '' },
+      ],
+      placeholder: 'Create Codespace using GitHub defaults?',
+    })
+    if (
+      confirmation !== 'Create and Connect' &&
+      (confirmation as { label?: string })?.label !== 'Create and Connect'
+    )
+      return
+    await progress(`Creating Codespace in ${repository}…`)
+    const codespace = await github.create(repository)
+    await connectSelected(codespace, github, signal)
+  })
+export const connect = (): Promise<void> =>
+  runGithub(async (github, signal) => {
+    const codespace = await pickCodespace(
+      github,
+      'Select a Codespace to connect to',
+    )
+    if (codespace) await connectSelected(codespace, github, signal)
+  })
+const start = (): Promise<void> =>
+  runGithub(async (github) => {
+    const codespace = await pickCodespace(github, 'Select a Codespace to start')
+    if (!codespace) return
+    await github.start(codespace.name)
+    await progress(
+      `Starting ${codespace.name}. Run Codespaces: Connect to Codespace when ready.`,
+    )
+  })
+const stop = (): Promise<void> =>
+  runGithub(async (github) => {
+    const codespace = await pickCodespace(github, 'Select a Codespace to stop')
+    if (!codespace) return
+    await github.stop(codespace.name)
+    let cleanupFailed = false
+    try {
+      await Api.request(`/${codespace.name}/connections`, 'DELETE')
+    } catch {
+      cleanupFailed = true
+    }
+    if (connectedName === codespace.name) {
+      await release()
+      await executeCommand('Workspace.setUri', 'memfs:///')
+    }
+    await progress(
+      `Stopped ${codespace.name}. GitHub storage charges may still apply.${cleanupFailed ? ' Could not close all editor connections. Disconnect other sessions or wait for them to expire.' : ''}`,
+    )
+  })
 const report = (fn: () => Promise<void>) => async (): Promise<void> => {
   try {
     await fn()

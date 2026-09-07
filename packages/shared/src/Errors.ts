@@ -95,6 +95,10 @@ export class InvalidBackendResponseError extends CodespacesError {
   readonly code = 'E_INVALID_BACKEND_RESPONSE'
 }
 
+export class InvalidCodespaceNameError extends CodespacesError {
+  readonly code = 'E_INVALID_CODESPACE_NAME'
+}
+
 export class InvalidDirectoryEntriesError extends CodespacesError {
   readonly code = 'E_INVALID_DIRECTORY_ENTRIES'
 }
