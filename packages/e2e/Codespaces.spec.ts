@@ -21,6 +21,9 @@ test('Pages export loads and exposes Codespaces commands', async ({ page }) => {
   await expect(
     page.getByText('Codespaces: Disconnect', { exact: true }),
   ).toBeVisible()
+  await expect(
+    page.getByText('Codespaces: Open in Browser', { exact: true }),
+  ).toBeVisible()
   expect(errors).toEqual([])
 })
 test('setup instructions and executable download are deployed', async ({

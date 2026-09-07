@@ -23,7 +23,8 @@
     "onCommand:codespaces.start",
     "onCommand:codespaces.stop",
     "onCommand:codespaces.authorize",
-    "onCommand:codespaces.connectGateway"
+    "onCommand:codespaces.connectGateway",
+    "onCommand:codespaces.openInBrowser"
   ],
   "commands": [
     {
@@ -57,6 +58,10 @@
     {
       "id": "codespaces.connectGateway",
       "label": "Codespaces: Connect to Manual Gateway"
+    },
+    {
+      "id": "codespaces.openInBrowser",
+      "label": "Codespaces: Open in Browser"
     }
   ],
   "fileSystemProviders": [

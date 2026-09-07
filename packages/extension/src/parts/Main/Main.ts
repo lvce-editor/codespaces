@@ -34,6 +34,7 @@ let operation: AbortController | undefined
 let management: AbortController | undefined
 let session: string | undefined
 let connectedName: string | undefined
+let lastAttemptedName: string | undefined
 const progress = async (message: string): Promise<void> => {
   output ||= createOutputChannel('codespaces')
   await output.replace(message)
@@ -98,6 +99,7 @@ const connectSelected = async (
   signal: AbortSignal,
 ): Promise<void> => {
   signal.throwIfAborted()
+  lastAttemptedName = codespace.name
   await release(false)
   signal.throwIfAborted()
   const controller = new AbortController()
@@ -150,7 +152,13 @@ const connectSelected = async (
       operation = undefined
       await Connection.dispose()
     }
-    if (!controller.signal.aborted) throw error
+    if (!controller.signal.aborted) {
+      await update(
+        'Run Codespaces: Open in Browser to inspect the container and view its creation logs. GitHub can provide a recovery container when devcontainer configuration fails.',
+        true,
+      ).catch(() => {})
+      throw error
+    }
   }
 }
 const runGithub = async (
@@ -290,6 +298,12 @@ export const activate = async (): Promise<void> => {
     'codespaces.setup': setup,
     'codespaces.connect': connect,
     'codespaces.start': start,
+    'codespaces.openInBrowser': async () => {
+      const url = lastAttemptedName
+        ? `https://github.com/codespaces/${encodeURIComponent(lastAttemptedName)}`
+        : 'https://github.com/codespaces'
+      await executeCommand('Open.openUrl', url, true)
+    },
     'codespaces.stop': stop,
     'codespaces.authorize': async () => {
       await executeCommand(
@@ -330,7 +344,8 @@ export const activate = async (): Promise<void> => {
             void report(async () => {
               if (
                 id === 'codespaces.disconnect' ||
-                id === 'codespaces.authorize'
+                id === 'codespaces.authorize' ||
+                id === 'codespaces.openInBrowser'
               ) {
                 await callback()
                 return
