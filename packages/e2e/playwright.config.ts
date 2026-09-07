@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
 export default defineConfig({
-  testDir: 'packages/e2e',
+  testDir: '.',
   workers: 1,
   timeout: 60_000,
   use: {
@@ -10,6 +11,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'node packages/build/src/serve-static.ts',
+    cwd: fileURLToPath(new URL('../..', import.meta.url)),
     url: `http://127.0.0.1:${process.env.LVCE_CODESPACES_TEST_PORT || 4173}/codespaces/`,
     reuseExistingServer: !process.env.CI,
   },
