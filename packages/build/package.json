@@ -11,8 +11,8 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@lvce-editor/shared-process": "0.113.21",
-    "@lvce-editor/static-server": "0.113.21",
+    "@lvce-editor/shared-process": "0.113.22",
+    "@lvce-editor/static-server": "0.113.22",
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
     "esbuild-plugin-polyfill-node": "0.3.0"
