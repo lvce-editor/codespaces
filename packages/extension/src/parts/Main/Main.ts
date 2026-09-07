@@ -262,24 +262,67 @@ const start = (): Promise<void> =>
       `Starting ${codespace.name}. Run Codespaces: Connect to Codespace when ready.`,
     )
   })
+const stopSelected = async (
+  github: GithubClient,
+  name: string,
+): Promise<string> => {
+  await github.stop(name)
+  let cleanupFailed = false
+  try {
+    await Api.request(`/${name}/connections`, 'DELETE')
+  } catch {
+    cleanupFailed = true
+  }
+  if (connectedName === name) {
+    try {
+      await release(false)
+      await executeCommand('Workspace.setUri', 'memfs:///')
+    } catch {
+      cleanupFailed = true
+    }
+  }
+  return `Stopped ${name}. GitHub storage charges may still apply.${cleanupFailed ? ' Could not close all editor connections. Disconnect other sessions or wait for them to expire.' : ''}`
+}
 const stop = (): Promise<void> =>
   runGithub(async (github) => {
     const codespace = await pickCodespace(github, 'Select a Codespace to stop')
     if (!codespace) return
-    await github.stop(codespace.name)
-    let cleanupFailed = false
-    try {
-      await Api.request(`/${codespace.name}/connections`, 'DELETE')
-    } catch {
-      cleanupFailed = true
-    }
-    if (connectedName === codespace.name) {
-      await release()
-      await executeCommand('Workspace.setUri', 'memfs:///')
-    }
-    await progress(
-      `Stopped ${codespace.name}. GitHub storage charges may still apply.${cleanupFailed ? ' Could not close all editor connections. Disconnect other sessions or wait for them to expire.' : ''}`,
+    await progress(await stopSelected(github, codespace.name))
+  })
+const stopAll = (): Promise<void> =>
+  runGithub(async (github, signal) => {
+    await progress('Loading your Codespaces…')
+    const codespaces = (await github.list()).filter(
+      ({ state }) =>
+        !['Shutdown', 'ShuttingDown', 'Deleted', 'Archived'].includes(state),
     )
+    if (!codespaces.length) {
+      await progress('No active Codespaces to stop.')
+      return
+    }
+    const messages: string[] = []
+    let failed = 0
+    for (const codespace of codespaces) {
+      signal.throwIfAborted()
+      await progress([...messages, `Stopping ${codespace.name}…`].join('\n'))
+      try {
+        messages.push(await stopSelected(github, codespace.name))
+      } catch (error) {
+        signal.throwIfAborted()
+        failed++
+        messages.push(
+          `Failed to stop ${codespace.name}: ${error instanceof Error ? error.message : 'Codespaces command failed'}`,
+        )
+      }
+    }
+    signal.throwIfAborted()
+    const summary = `Stopped ${codespaces.length - failed} of ${codespaces.length} Codespaces.`
+    await progress([...messages, summary].join('\n'))
+    if (failed)
+      await showNotification(
+        'error',
+        `${summary} See Codespaces output for failures.`,
+      )
   })
 const report = (fn: () => Promise<void>) => async (): Promise<void> => {
   try {
@@ -306,6 +349,7 @@ export const activate = async (): Promise<void> => {
       await executeCommand('Open.openUrl', url, true)
     },
     'codespaces.stop': stop,
+    'codespaces.stopAll': stopAll,
     'codespaces.authorize': async () => {
       await executeCommand(
         'Open.openUrl',
