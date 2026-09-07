@@ -13,6 +13,7 @@ for (const outcome of ['available', 'unavailable', 'cancelled'] as const) {
       bundle: true,
       format: 'esm',
       platform: 'node',
+      mainFields: ['module', 'main'],
       write: false,
       plugins: [
         {
@@ -37,6 +38,7 @@ for (const outcome of ['available', 'unavailable', 'cancelled'] as const) {
           export const getAccessToken = async () => 'test-token';
           export const registerCommand = command => commands.set(command.id, command.execute);
           export const registerFileSystemProvider = () => {};
+          export const registerView = () => ({ dispose() {} });
           export const createOutputChannel = () => ({replace: async message => output.push(message)});
           export const openOutputView = async () => {};
           export const showNotification = async () => {};

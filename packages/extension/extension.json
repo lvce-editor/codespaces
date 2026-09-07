@@ -26,7 +26,8 @@
     "onCommand:codespaces.authorize",
     "onCommand:codespaces.connectGateway",
     "onCommand:codespaces.openInBrowser",
-    "onCommand:codespaces.viewCreationLog"
+    "onCommand:codespaces.viewCreationLog",
+    "onView:builtin.codespaces-preview"
   ],
   "commands": [
     {
@@ -83,6 +84,15 @@
     {
       "id": "codespaces",
       "label": "Codespaces"
+    }
+  ],
+  "views": [
+    {
+      "id": "builtin.codespaces-preview",
+      "title": "Application Preview",
+      "kind": "virtualDom",
+      "type": "preview",
+      "showSideBarHeader": false
     }
   ]
 }

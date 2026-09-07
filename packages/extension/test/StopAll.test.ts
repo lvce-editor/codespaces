@@ -29,11 +29,22 @@ const fixture = async (
     bundle: true,
     format: 'esm',
     platform: 'node',
+    mainFields: ['module', 'main'],
     write: false,
     plugins: [
       {
         name: 'editor-api',
         setup(builder) {
+          builder.onResolve({ filter: /\/FileSystem\.ts$/ }, () => ({
+            path: 'filesystem',
+            namespace: 'filesystem-fixture',
+          }))
+          builder.onLoad(
+            { filter: /.*/, namespace: 'filesystem-fixture' },
+            () => ({
+              contents: `export const fileSystem = { readFile: async () => { throw Object.assign(new Error('No devcontainer configuration'), { code: 'ENOENT' }); } };`,
+            }),
+          )
           builder.onResolve({ filter: /^@lvce-editor\/api$/ }, () => ({
             path: 'api',
             namespace: 'test',
@@ -50,6 +61,7 @@ const fixture = async (
             export const getAccessToken = async () => 'test-token';
             export const registerCommand = command => commands.set(command.id, command.execute);
             export const registerFileSystemProvider = () => {};
+            export const registerView = () => ({ dispose() {} });
             export const createOutputChannel = () => ({replace: async message => output.push(message)});
             export const openOutputView = async () => {};
             export const showNotification = async (...args) => notifications.push(args);
