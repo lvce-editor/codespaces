@@ -1,3 +1,14 @@
+import {
+  BackendStartupTimeoutError,
+  BackendStoppedError,
+  CodespaceRequiredError,
+  CommandFailedError,
+  DownloadChecksumError,
+  DownloadFailedError,
+  InvalidBackendResponseError,
+  SetupOwnerRequiredError,
+  UnsupportedPlatformError,
+} from '../../shared/src/Errors.ts'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
@@ -28,7 +39,7 @@ const run = (command: string, args: string[]): Promise<void> =>
     child.on('exit', (code) =>
       code === 0
         ? resolve()
-        : reject(new Error(`${command} exited with ${code}`)),
+        : reject(new CommandFailedError(`${command} exited with ${code}`)),
     )
   })
 const installArchive = async (
@@ -46,10 +57,11 @@ const installArchive = async (
   try {
     console.log('Downloading verified LVCE runtime…')
     const response = await fetch(url, { signal: AbortSignal.timeout(120_000) })
-    if (!response.ok) throw new Error(`Download failed (${response.status})`)
+    if (!response.ok)
+      throw new DownloadFailedError(`Download failed (${response.status})`)
     const bytes = Buffer.from(await response.arrayBuffer())
     if (createHash('sha256').update(bytes).digest('hex') !== hash)
-      throw new Error('Download checksum mismatch')
+      throw new DownloadChecksumError('Download checksum mismatch')
     const archive = path.join(temporary, 'archive.tar.gz')
     const unpacked = path.join(temporary, 'unpacked')
     await writeFile(archive, bytes, { mode: 0o600 })
@@ -66,18 +78,22 @@ const main = async (): Promise<void> => {
   const local = process.argv.includes('--local-test')
   const relay = process.argv.includes('--relay')
   if (!owner && !relay)
-    throw new Error(
+    throw new SetupOwnerRequiredError(
       'Run Codespaces: Set Up a Codespace in LVCE to get a command for your account.',
     )
   if (process.platform !== 'linux' || process.arch !== 'x64')
-    throw new Error('This first version supports Linux x64 Codespaces.')
+    throw new UnsupportedPlatformError(
+      'This first version supports Linux x64 Codespaces.',
+    )
   const codespace = process.env.CODESPACE_NAME
   if (
     !local &&
     !relay &&
     (!codespace || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(codespace))
   )
-    throw new Error('Run this command inside a GitHub Codespace.')
+    throw new CodespaceRequiredError(
+      'Run this command inside a GitHub Codespace.',
+    )
   const root =
     process.env.LVCE_CODESPACES_ROOT || path.join(homedir(), '.lvce-codespaces')
   const runtime = path.join(root, 'runtime', nodeVersion)
@@ -101,7 +117,7 @@ const main = async (): Promise<void> => {
       const lines = createInterface({ input: child.stdout })
       const timer = setTimeout(() => {
         child.kill()
-        reject(new Error('LVCE backend startup timed out'))
+        reject(new BackendStartupTimeoutError('LVCE backend startup timed out'))
       }, 120_000)
       child.once('error', (error) => {
         clearTimeout(timer)
@@ -110,7 +126,9 @@ const main = async (): Promise<void> => {
       child.once('exit', () => {
         clearTimeout(timer)
         lines.close()
-        reject(new Error('LVCE backend stopped before connecting'))
+        reject(
+          new BackendStoppedError('LVCE backend stopped before connecting'),
+        )
       })
       lines.on('line', (line) => {
         try {
@@ -120,7 +138,7 @@ const main = async (): Promise<void> => {
             !Number.isInteger(message.backend?.port) ||
             typeof message.backend?.token !== 'string'
           )
-            throw new Error('Invalid backend response')
+            throw new InvalidBackendResponseError('Invalid backend response')
           clearTimeout(timer)
           lines.close()
           resolve(message)
@@ -128,7 +146,9 @@ const main = async (): Promise<void> => {
           clearTimeout(timer)
           lines.close()
           child.kill()
-          reject(new Error('Invalid backend startup response'))
+          reject(
+            new InvalidBackendResponseError('Invalid backend startup response'),
+          )
         }
       })
     },

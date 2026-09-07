@@ -1,4 +1,10 @@
 import {
+  ConnectionCancelledError,
+  InvalidRepositoryError,
+  NoCodespacesError,
+  OperationInProgressError,
+} from '../../shared/src/Errors.ts'
+import {
   activate as activateApi,
   executeCommand,
   registerCommand,
@@ -31,7 +37,7 @@ const pickCodespace = async (
 ): Promise<Api.Codespace | undefined> => {
   const codespaces = await Api.list()
   if (!codespaces.length)
-    throw new Error(
+    throw new NoCodespacesError(
       'No Codespaces found. Run Codespaces: Set Up a Codespace to create one.',
     )
   const items = codespaces.map((value) => ({
@@ -98,7 +104,8 @@ const connectSelected = async (codespace: Api.Codespace): Promise<void> => {
         if (!controller.signal.aborted) session = id
       },
     )
-    if (controller.signal.aborted) throw new Error('Connection cancelled')
+    if (controller.signal.aborted)
+      throw new ConnectionCancelledError('Connection cancelled')
     await openWorkspace(codespace.name, result, controller.signal)
     await progress(
       `Connected to ${codespace.name}.\nUse Codespaces: Stop Codespace to stop GitHub compute when finished. Disconnect only closes the editor connection.\n`,
@@ -123,7 +130,7 @@ export const setup = async (): Promise<void> => {
   })
   if (typeof repository !== 'string' || !repository) return
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
-    throw new Error('Enter a repository as owner/name.')
+    throw new InvalidRepositoryError('Enter a repository as owner/name.')
   const confirmation = await showQuickPick({
     items: [
       {
@@ -232,7 +239,7 @@ export const activate = async (): Promise<void> => {
                 return
               }
               if (busy)
-                throw new Error(
+                throw new OperationInProgressError(
                   'A Codespaces operation is already in progress. Use Disconnect to cancel it.',
                 )
               busy = true

@@ -1,3 +1,11 @@
+import {
+  CrossServerRenameError,
+  FileExistsError,
+  InvalidDirectoryEntriesError,
+  InvalidFileContentError,
+  InvalidRemoteUriError,
+  RemoteRootModificationError,
+} from '../../shared/src/Errors.ts'
 import type { FileSystemDirent, FileSystemProvider } from '@lvce-editor/api'
 import * as RemoteServerConnection from './Connection.ts'
 
@@ -22,7 +30,7 @@ const getLocation = (
 ): { readonly authority: string; readonly path: string } => {
   const url = new URL(uri)
   if (url.protocol !== 'codespaces:' || !url.host) {
-    throw new TypeError(`Invalid remote server URI: ${uri}`)
+    throw new InvalidRemoteUriError(`Invalid remote server URI: ${uri}`)
   }
   return {
     authority: url.host,
@@ -65,7 +73,9 @@ const invokeFileSystem = (
 
 const requireMutable = (uri: string): void => {
   if (getLocation(uri).path === '/') {
-    throw new Error('Cannot modify the remote root folder')
+    throw new RemoteRootModificationError(
+      'Cannot modify the remote root folder',
+    )
   }
 }
 
@@ -86,7 +96,9 @@ export const createRemoteServerFileSystem = (
         uri,
       )
       if (!Array.isArray(value)) {
-        throw new TypeError('Remote server returned invalid directory entries')
+        throw new InvalidDirectoryEntriesError(
+          'Remote server returned invalid directory entries',
+        )
       }
       return value
         .map((entry) => (entry?.type === 9 ? { ...entry, type: 7 } : entry))
@@ -100,7 +112,9 @@ export const createRemoteServerFileSystem = (
         'base64',
       )
       if (typeof value !== 'string') {
-        throw new TypeError('Remote server returned invalid file content')
+        throw new InvalidFileContentError(
+          'Remote server returned invalid file content',
+        )
       }
       return decodeBase64(value)
     },
@@ -112,16 +126,14 @@ export const createRemoteServerFileSystem = (
       const oldLocation = getLocation(oldUri)
       const newLocation = getLocation(newUri)
       if (oldLocation.authority !== newLocation.authority) {
-        throw new Error('Cannot rename across remote servers')
+        throw new CrossServerRenameError('Cannot rename across remote servers')
       }
       RemoteServerConnection.assertAuthority(oldLocation.authority)
       requireMutable(oldUri)
       requireMutable(newUri)
       try {
         await invoke('FileSystem.stat', toFileUri(newLocation.path))
-        const error = new Error('File exists') as Error & { code?: string }
-        error.code = 'EEXIST'
-        throw error
+        throw new FileExistsError('File exists')
       } catch (error) {
         if ((error as Error & { code?: string }).code !== 'ENOENT') {
           throw error

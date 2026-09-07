@@ -1,3 +1,8 @@
+import {
+  GatewayConnectionError,
+  GatewayUnreachableError,
+  InvalidGatewayConnectionError,
+} from '../../shared/src/Errors.ts'
 export interface ConnectedWorkspace {
   readonly authentication: 'websocket-ticket'
   readonly sessionToken: string
@@ -19,7 +24,7 @@ export const connectToGateway = async (
       signal: AbortSignal.timeout(20_000),
     })
   } catch {
-    throw new Error(
+    throw new GatewayUnreachableError(
       'Cannot reach the Codespaces gateway. Check that setup is running and port 3774 is public in the Codespaces Ports tab; the gateway still requires your LVCE login.',
     )
   }
@@ -30,7 +35,7 @@ export const connectToGateway = async (
         : response.status === 401
           ? 'Sign in to LVCE again.'
           : 'Check the Codespace terminal and run setup again.'
-    throw new Error(
+    throw new GatewayConnectionError(
       `Codespaces connection failed (${response.status}). ${hint}`,
     )
   }
@@ -49,7 +54,9 @@ export const connectToGateway = async (
     websocket.search ||
     websocket.hash
   ) {
-    throw new Error('Codespaces gateway returned an invalid connection.')
+    throw new InvalidGatewayConnectionError(
+      'Codespaces gateway returned an invalid connection.',
+    )
   }
   return value
 }
