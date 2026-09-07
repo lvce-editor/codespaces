@@ -37,8 +37,10 @@ npm run build:static
 npm test
 npm run type-check
 npm run lint
-npx playwright install chromium
+npm exec --workspace=packages/e2e -- playwright install chromium
 npm run test:e2e
 ```
+
+E2e configuration and dependencies live in the `packages/e2e` npm workspace.
 
 `node packages/build/src/serve-static.ts` serves the export at `http://127.0.0.1:4173/codespaces/`. CI runs unit and Chromium tests and deploys `main` to Pages. Browser tests cover creation, connection, file saving, and stopping using a fixture management API and a real LVCE file backend. Backend-2 separately tests ownership, private relay traffic, ticket replay rejection, and cancellation. These fixtures do not establish that a real GitHub-hosted Codespace has been tested.
