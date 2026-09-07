@@ -82,7 +82,9 @@ test('authenticates the owner, enforces origins, and proxies one-use WebSocket t
     await once(socket, 'close')
   } finally {
     await gateway.close()
-    await new Promise<void>((resolve) => backend.close(() => resolve()))
+    const { promise, resolve } = Promise.withResolvers<void>()
+    backend.close(() => resolve())
+    await promise
   }
 })
 

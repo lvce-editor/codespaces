@@ -59,19 +59,20 @@ export const list = async (signal?: AbortSignal): Promise<Codespace[]> => {
   }
   return result
 }
-const sleep = (signal: AbortSignal): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const stop = (): void => {
-      clearTimeout(timer)
-      reject(new ConnectionCancelledError('Connection cancelled'))
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', stop)
-      resolve()
-    }, 1500)
-    signal.addEventListener('abort', stop, { once: true })
-    if (signal.aborted) stop()
-  })
+const sleep = async (signal: AbortSignal): Promise<void> => {
+  const { promise, resolve, reject } = Promise.withResolvers<void>()
+  const stop = (): void => {
+    clearTimeout(timer)
+    reject(new ConnectionCancelledError('Connection cancelled'))
+  }
+  const timer = setTimeout(() => {
+    signal.removeEventListener('abort', stop)
+    resolve()
+  }, 1500)
+  signal.addEventListener('abort', stop, { once: true })
+  if (signal.aborted) stop()
+  return promise
+}
 export const ensureAvailable = async (
   codespace: Codespace,
   signal: AbortSignal,

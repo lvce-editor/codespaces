@@ -10,5 +10,6 @@
     "lib": ["ESNext", "DOM"],
     "types": ["node"]
   },
-  "include": ["packages/**/*.ts", "playwright.config.ts"]
+  "include": ["packages/**/*.ts"],
+  "exclude": ["packages/e2e"]
 }

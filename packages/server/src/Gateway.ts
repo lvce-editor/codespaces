@@ -267,10 +267,10 @@ export const createGateway = async (options: GatewayOptions) => {
       })
     })
   })
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(options.port, '127.0.0.1', resolve)
-  })
+  const { promise, resolve, reject } = Promise.withResolvers<void>()
+  server.once('error', reject)
+  server.listen(options.port, '127.0.0.1', resolve)
+  await promise
   const address = server.address()
   if (!address || typeof address === 'string')
     throw new GatewayStartupError('Gateway did not start')
@@ -287,7 +287,9 @@ export const createGateway = async (options: GatewayOptions) => {
         for (const client of clients) client.terminate()
         wss.close()
         server.closeAllConnections()
-        await new Promise<void>((resolve) => server.close(() => resolve()))
+        const { promise, resolve } = Promise.withResolvers<void>()
+        server.close(() => resolve())
+        await promise
       })()),
   }
 }

@@ -269,20 +269,28 @@ const createRpc = async (
         )
       }
       const id = nextId++
-      return new Promise((resolveRequest, rejectRequest) => {
-        const timeout = setTimeout(() => {
-          pending.delete(id)
-          rejectRequest(
-            new RemoteRequestTimeoutError('Remote server request timed out'),
-          )
-        }, 120_000)
-        pending.set(id, {
-          reject: rejectRequest,
-          resolve: resolveRequest,
-          timeout,
-        })
-        webSocket.send(JSON.stringify({ id, jsonrpc: '2.0', method, params }))
+      const {
+        promise,
+        resolve: resolveRequest,
+        reject: rejectRequest,
+      } = Promise.withResolvers<unknown>()
+      const timeout = setTimeout(() => {
+        pending.delete(id)
+        rejectRequest(
+          new RemoteRequestTimeoutError('Remote server request timed out'),
+        )
+      }, 120_000)
+      pending.set(id, {
+        reject: rejectRequest,
+        resolve: resolveRequest,
+        timeout,
       })
+      try {
+        webSocket.send(JSON.stringify({ id, jsonrpc: '2.0', method, params }))
+      } catch (error) {
+        rejectRequest(error)
+      }
+      return promise
     },
   }
 }

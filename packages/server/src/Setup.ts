@@ -32,16 +32,17 @@ const serverHash =
 const nodeUrl = `https://nodejs.org/dist/${nodeVersion}/node-${nodeVersion}-linux-x64.tar.gz`
 const nodeHash =
   '44836872d9aec49f1e6b52a9a922872db9a2b02d235a616a5681b6a85fec8d89'
-const run = (command: string, args: string[]): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: 'inherit' })
-    child.on('error', reject)
-    child.on('exit', (code) =>
-      code === 0
-        ? resolve()
-        : reject(new CommandFailedError(`${command} exited with ${code}`)),
-    )
-  })
+const run = async (command: string, args: string[]): Promise<void> => {
+  const { promise, resolve, reject } = Promise.withResolvers<void>()
+  const child = spawn(command, args, { stdio: 'inherit' })
+  child.on('error', reject)
+  child.on('exit', (code) =>
+    code === 0
+      ? resolve()
+      : reject(new CommandFailedError(`${command} exited with ${code}`)),
+  )
+  return promise
+}
 const installArchive = async (
   url: string,
   hash: string,
@@ -112,47 +113,45 @@ const main = async (): Promise<void> => {
     env: { ...process.env, LVCE_REMOTE_SSH_ROOT: root },
     stdio: ['pipe', 'pipe', 'inherit'],
   })
-  const ready = await new Promise<{ backend: { port: number; token: string } }>(
-    (resolve, reject) => {
-      const lines = createInterface({ input: child.stdout })
-      const timer = setTimeout(() => {
-        child.kill()
-        reject(new BackendStartupTimeoutError('LVCE backend startup timed out'))
-      }, 120_000)
-      child.once('error', (error) => {
-        clearTimeout(timer)
-        reject(error)
-      })
-      child.once('exit', () => {
-        clearTimeout(timer)
-        lines.close()
-        reject(
-          new BackendStoppedError('LVCE backend stopped before connecting'),
-        )
-      })
-      lines.on('line', (line) => {
-        try {
-          const message = JSON.parse(line)
-          if (message.type !== 'ready') return
-          if (
-            !Number.isInteger(message.backend?.port) ||
-            typeof message.backend?.token !== 'string'
-          )
-            throw new InvalidBackendResponseError('Invalid backend response')
-          clearTimeout(timer)
-          lines.close()
-          resolve(message)
-        } catch {
-          clearTimeout(timer)
-          lines.close()
-          child.kill()
-          reject(
-            new InvalidBackendResponseError('Invalid backend startup response'),
-          )
-        }
-      })
-    },
-  )
+  const { promise, resolve, reject } = Promise.withResolvers<{
+    backend: { port: number; token: string }
+  }>()
+  const lines = createInterface({ input: child.stdout })
+  const timer = setTimeout(() => {
+    child.kill()
+    reject(new BackendStartupTimeoutError('LVCE backend startup timed out'))
+  }, 120_000)
+  child.once('error', (error) => {
+    clearTimeout(timer)
+    reject(error)
+  })
+  child.once('exit', () => {
+    clearTimeout(timer)
+    lines.close()
+    reject(new BackendStoppedError('LVCE backend stopped before connecting'))
+  })
+  lines.on('line', (line) => {
+    try {
+      const message = JSON.parse(line)
+      if (message.type !== 'ready') return
+      if (
+        !Number.isInteger(message.backend?.port) ||
+        typeof message.backend?.token !== 'string'
+      )
+        throw new InvalidBackendResponseError('Invalid backend response')
+      clearTimeout(timer)
+      lines.close()
+      resolve(message)
+    } catch {
+      clearTimeout(timer)
+      lines.close()
+      child.kill()
+      reject(
+        new InvalidBackendResponseError('Invalid backend startup response'),
+      )
+    }
+  })
+  const ready = await promise
   if (relay) {
     console.log(
       JSON.stringify({
