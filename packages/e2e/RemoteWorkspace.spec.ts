@@ -623,6 +623,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect(
     page.getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true }),
   ).toHaveCount(0)
+  expect(refreshRequests).toBe(1)
   // Reload without Disconnect, as a user returning to an existing Codespace
   // would. Authentication persists, but the extension must establish new RPCs.
   await page.reload()
@@ -703,7 +704,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   )
   expect(statePolls).toBeGreaterThanOrEqual(3)
   expect(tokenRequests).toBe(3)
-  expect(refreshRequests).toBe(1)
+  expect(refreshRequests).toBe(2)
   expect(
     operations.indexOf('DELETE /codespaces/browser-test-codespace/connections'),
   ).toBeGreaterThan(
