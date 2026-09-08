@@ -226,6 +226,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   context,
   request,
 }) => {
+  test.setTimeout(90_000)
   await mkdir(path.join(workspace, '.devcontainer'), { recursive: true })
   await writeFile(
     path.join(workspace, '.devcontainer/devcontainer.json'),
@@ -622,6 +623,46 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
   await expect(
     page.getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true }),
   ).toHaveCount(0)
+  // Reload without Disconnect, as a user returning to an existing Codespace
+  // would. Authentication persists, but the extension must establish new RPCs.
+  await page.reload()
+  await page.waitForSelector('.Workbench')
+  await page.keyboard.press('F1')
+  await page
+    .getByRole('combobox', {
+      name: 'Type the name of a command to run.',
+      exact: true,
+    })
+    .fill('>Codespaces: Connect to Codespace')
+  await page
+    .getByRole('option', {
+      name: 'Codespaces: Connect to Codespace',
+      exact: true,
+    })
+    .click()
+  await page.getByRole('option', { name: /browser-test-codespace/ }).click()
+  await expect(
+    page.getByText(/Connected to browser-test-codespace\./),
+  ).toBeVisible()
+  await expect(
+    page.getByText('codespaces-proof.txt', { exact: true }),
+  ).toBeVisible()
+  await page.getByText('codespaces-proof.txt', { exact: true }).dblclick()
+  await expect(
+    page.getByText(/Browser-only connection saved this\./),
+  ).toBeVisible()
+  await expect(preview).toBeVisible()
+  await page.locator('.PanelTab[name="Terminals"]').click()
+  await expect(terminalInput).toBeVisible()
+  await terminalInput.pressSequentially('printf reconnected > reload-proof.txt')
+  await terminalInput.press('Enter')
+  await expect
+    .poll(() =>
+      readFile(path.join(workspace, 'reload-proof.txt'), 'utf8').catch(
+        () => '',
+      ),
+    )
+    .toBe('reconnected')
   const stopFromPicker = async (): Promise<void> => {
     // The terminal and app iframe have their own key handlers. Target the
     // workbench before issuing its command-palette shortcut.
@@ -661,7 +702,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     'DELETE /codespaces/browser-test-codespace/connections',
   )
   expect(statePolls).toBeGreaterThanOrEqual(3)
-  expect(tokenRequests).toBe(2)
+  expect(tokenRequests).toBe(3)
   expect(refreshRequests).toBe(1)
   expect(
     operations.indexOf('DELETE /codespaces/browser-test-codespace/connections'),
@@ -678,7 +719,7 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
       /Stopped browser-test-codespace.*Could not close all editor connections/,
     ),
   ).toBeVisible()
-  expect(tokenRequests).toBe(3)
+  expect(tokenRequests).toBe(4)
   expect(
     operations.filter(
       (value) => value === 'POST /user/codespaces/browser-test-codespace/stop',

@@ -331,7 +331,15 @@ export const invoke = async (
     throw new RemoteServerNotPairedError('Remote server is not paired')
   }
   state.rpc ||= createRpc(state.options, state.generation)
-  const rpc = await state.rpc
+  const pending = state.rpc
+  let rpc: Rpc
+  try {
+    rpc = await pending
+  } catch (error) {
+    // Ticket acquisition can fail before a socket exists to clear the cache.
+    if (state.rpc === pending) state.rpc = undefined
+    throw error
+  }
   return rpc.invoke(method, ...params)
 }
 

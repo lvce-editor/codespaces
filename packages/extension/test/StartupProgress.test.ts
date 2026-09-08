@@ -38,3 +38,20 @@ test('keeps failure and cancellation visible and bounds retained history', async
   assert.match(output, /Connection cancelled\./)
   assert.doesNotMatch(output, /Disconnect to cancel/)
 })
+
+test('elapsed progress continues while a connection stage is pending', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 })
+  const messages: string[] = []
+  const update = createStartupProgress('test-codespace', async (value) => {
+    messages.push(value)
+  })
+  await update('Connecting to the Codespace…')
+  t.mock.timers.tick(1000)
+  await Promise.resolve()
+  assert.match(messages.at(-1)!, /Elapsed: 0m 1s/)
+  await update('Connection cancelled.', true)
+  const count = messages.length
+  t.mock.timers.tick(60_000)
+  await Promise.resolve()
+  assert.equal(messages.length, count)
+})

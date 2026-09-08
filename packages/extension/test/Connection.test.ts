@@ -121,3 +121,22 @@ test('rename rejects existing destinations and proceeds on remote ENOENT', async
   await missing.rename('codespaces://test/old', 'codespaces://test/new')
   assert.deepEqual(calls, ['FileSystem.stat', 'FileSystem.rename'])
 })
+
+test('retries WebSocket authorization after a failed connection attempt', async (t) => {
+  Connection.set(options)
+  t.after(() => Connection.dispose())
+  let attempts = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    attempts++
+    return new Response(null, { status: attempts === 1 ? 503 : 401 })
+  })
+  await assert.rejects(
+    Connection.invoke('FileSystem.stat', '/test'),
+    /HTTP 503/,
+  )
+  await assert.rejects(
+    Connection.invoke('FileSystem.stat', '/test'),
+    /HTTP 401/,
+  )
+  assert.equal(attempts, 2)
+})
