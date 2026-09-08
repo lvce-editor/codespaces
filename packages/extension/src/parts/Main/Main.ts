@@ -16,6 +16,7 @@ import {
   showQuickPick,
   showNotification,
 } from '@lvce-editor/api'
+import { waitForWorkspace } from '../WaitForWorkspace/WaitForWorkspace.ts'
 import { getToken } from '../Auth/Auth.ts'
 import * as Api from '../CodespacesApi/CodespacesApi.ts'
 import {
@@ -101,11 +102,14 @@ const openWorkspace = async (
   connectedName = name
   const uri = new URL(`codespaces://${name}`)
   uri.pathname = value.workspacePath
-  await executeCommand('Workspace.setUri', uri.href, '/', {
-    command: Connection.commandId,
-    workspacePath: value.workspacePath,
-    terminalSpawnOptions: { command: 'bash', args: ['-i'] },
-  })
+  await waitForWorkspace(
+    executeCommand('Workspace.setUri', uri.href, '/', {
+      command: Connection.commandId,
+      workspacePath: value.workspacePath,
+      terminalSpawnOptions: { command: 'bash', args: ['-i'] },
+    }),
+    signal,
+  )
 }
 const connectSelected = async (
   codespace: Codespace,
@@ -295,14 +299,16 @@ export const setup = (): Promise<void> =>
     const codespace = await github.create(repository)
     await connectSelected(codespace, github, signal)
   })
-export const connect = (): Promise<void> =>
-  runGithub(async (github, signal) => {
+export const connect = async (): Promise<void> => {
+  await progress('Loading your Codespaces…')
+  await runGithub(async (github, signal) => {
     const codespace = await pickCodespace(
       github,
       'Select a Codespace to connect to',
     )
     if (codespace) await connectSelected(codespace, github, signal)
   })
+}
 const viewCreationLog = (): Promise<void> =>
   runGithub(async (github, signal) => {
     const name =

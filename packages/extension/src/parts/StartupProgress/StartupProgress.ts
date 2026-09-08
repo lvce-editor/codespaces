@@ -6,7 +6,11 @@ export const createStartupProgress = (
   const started = now()
   const history: string[] = []
   let previous = ''
-  return async (message: string, finished = false): Promise<void> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let revision = 0
+  const update = async (message: string, finished = false): Promise<void> => {
+    const current = ++revision
+    clearTimeout(timer)
     const seconds = Math.floor((now() - started) / 1000)
     const elapsed = `${Math.floor(seconds / 60)}m ${seconds % 60}s`
     if (message !== previous) {
@@ -20,5 +24,11 @@ export const createStartupProgress = (
           ? 'Use Codespaces: Stop Codespace to stop GitHub compute. Disconnect only closes the editor connection.\n'
           : 'Codespaces compute is billed by GitHub while running.\nRun Codespaces: Disconnect to cancel.\n'),
     )
+    if (!finished && revision === current) {
+      timer = setTimeout(() => {
+        void update(previous).catch(() => {})
+      }, 1000)
+    }
   }
+  return update
 }
