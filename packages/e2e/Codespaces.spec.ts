@@ -196,6 +196,12 @@ test('failed setup automatically opens the creation log in the editor', async ({
       exact: true,
     }),
   ).toBeVisible()
+  const outputDatabases = await page.evaluate(async () =>
+    (await indexedDB.databases())
+      .map(({ name }) => name)
+      .filter((name) => name?.includes('output')),
+  )
+  expect(outputDatabases).toEqual(['lvce-output-channels'])
   expect(operations).toContain('GET /codespaces/failed-container/creation-log')
   expect(operations).toContain('DELETE /codespaces/connections/session')
   expect(operations.some((operation) => operation.endsWith('/stop'))).toBe(
