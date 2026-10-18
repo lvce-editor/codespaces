@@ -106,7 +106,9 @@ test('failed setup automatically opens the creation log in the editor', async ({
 }) => {
   const operations: string[] = []
   await context.route('https://lvce-editor.dev/account/me', (route) =>
-    route.fulfill({ json: { displayName: 'Codespaces Test' } }),
+    route.fulfill({
+      json: { id: 'codespaces-test', displayName: 'Codespaces Test' },
+    }),
   )
   await context.route('https://api.github.com/user/codespaces*', (route) =>
     route.fulfill({

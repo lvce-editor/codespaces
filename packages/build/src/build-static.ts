@@ -46,11 +46,25 @@ await cp(
 )
 const callbackPath = join(root, 'dist/auth/callback.html')
 const callback = await readFile(callbackPath, 'utf8')
-await writeFile(
-  callbackPath,
-  callback.replace(
-    "window.location.replace('/')",
-    "window.location.replace('/codespaces/')",
-  ),
-)
+const currentCallbackPath = "const callbackPath = '/auth/callback'"
+const legacyCallbackRedirect = "window.location.replace('/')"
+if (callback.includes(currentCallbackPath)) {
+  await writeFile(
+    callbackPath,
+    callback.replace(
+      currentCallbackPath,
+      "const callbackPath = '/auth/callback.html'",
+    ),
+  )
+} else if (callback.includes(legacyCallbackRedirect)) {
+  await writeFile(
+    callbackPath,
+    callback.replace(
+      legacyCallbackRedirect,
+      "window.location.replace('/codespaces/')",
+    ),
+  )
+} else {
+  throw new Error('Unknown authentication callback layout')
+}
 await writeFile(join(root, 'dist/.nojekyll'), '')

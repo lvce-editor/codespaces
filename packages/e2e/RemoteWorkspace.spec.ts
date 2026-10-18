@@ -91,7 +91,9 @@ test('opens a working terminal after the relay closes and reconnects', async ({
   context,
 }) => {
   await context.route('https://lvce-editor.dev/account/me', (route) =>
-    route.fulfill({ json: { displayName: 'Codespaces Test' } }),
+    route.fulfill({
+      json: { id: 'codespaces-test', displayName: 'Codespaces Test' },
+    }),
   )
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
@@ -166,7 +168,9 @@ test('connects the Pages editor to real remote files', async ({
   context,
 }) => {
   await context.route('https://lvce-editor.dev/account/me', (route) =>
-    route.fulfill({ json: { displayName: 'Codespaces Test' } }),
+    route.fulfill({
+      json: { id: 'codespaces-test', displayName: 'Codespaces Test' },
+    }),
   )
   await page.goto('/codespaces/')
   await page.waitForSelector('.Workbench')
@@ -276,7 +280,9 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     repository: { full_name: 'test/project' },
   }
   await context.route('https://lvce-editor.dev/account/me', (route) =>
-    route.fulfill({ json: { displayName: 'Codespaces Test' } }),
+    route.fulfill({
+      json: { id: 'codespaces-test', displayName: 'Codespaces Test' },
+    }),
   )
   let cleanupFails = false
   let tokenRequests = 0
@@ -624,6 +630,44 @@ test('creates, connects and stops a Codespace entirely from Pages', async ({
     page.getByRole('tab', { name: 'codespaces-proof.txt Close', exact: true }),
   ).toHaveCount(0)
   expect(refreshRequests).toBe(1)
+  // Expire the persisted account before reload so reconnect exercises token
+  // refresh even when the auth worker preserves a valid session across reloads.
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('auth-worker', 1)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const transaction = database.transaction('auth', 'readwrite')
+        const store = transaction.objectStore('auth')
+        const value = store.get('accountSessions')
+        value.onerror = () => reject(value.error)
+        value.onsuccess = () => {
+          const registry = JSON.parse(String(value.result))
+          const active = registry.accounts.find(
+            (account: { id: string }) => account.id === registry.activeId,
+          )
+          if (!active) {
+            transaction.abort()
+            reject(new Error('Expected a persisted active account'))
+            return
+          }
+          active.session.authAccessTokenExpiresAt = Date.now() - 1
+          store.put(JSON.stringify(registry), 'accountSessions')
+        }
+        transaction.oncomplete = () => {
+          database.close()
+          resolve()
+        }
+        transaction.onabort = () => {
+          database.close()
+          reject(
+            transaction.error || new Error('Account expiry update aborted'),
+          )
+        }
+      }
+    })
+  })
   // Reload without Disconnect, as a user returning to an existing Codespace
   // would. Authentication persists, but the extension must establish new RPCs.
   await page.reload()
